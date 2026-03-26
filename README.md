@@ -23,11 +23,21 @@ This MVP does **not** use a per-family WhatsApp-style login/session model. The c
 `POST /api/telegram/bindings/bootstrap`
 - resumes the Telegram group-binding step using the `bindingId` and `inviteToken` returned from setup
 
+`POST /api/telegram/bindings/complete`
+- accepts a trusted Telegram bot/backend callback
+- validates `x-kin-telegram-secret` against `KIN_TELEGRAM_WEBHOOK_SECRET`
+- looks up the pending binding by `inviteToken`
+- rejects Telegram groups already bound to another family
+- moves a binding from `INVITE_PENDING` -> `BOT_ADDED` or `ACTIVE`
+- marks onboarding `COMPLETE` when the binding is confirmed
+- safely returns idempotent success for repeated completion requests on the same active binding
+
 ## Environment
 
 Expected env vars include:
 - `DATABASE_URL`
 - `KIN_TELEGRAM_BOT_USERNAME` (optional, used for Telegram deep links)
+- `KIN_TELEGRAM_WEBHOOK_SECRET` (required for trusted Telegram binding completion callbacks)
 
 ## Local dev
 
@@ -45,7 +55,7 @@ npx prisma migrate dev
 
 ## Next backend work
 
-- add the Telegram webhook/bot-side binding completion flow
-- move `GroupBinding` from `INVITE_PENDING` → `BOT_ADDED` / `ACTIVE`
-- mark onboarding complete when the Telegram group is verified
+- wire the actual Telegram bot/webhook service to call the binding completion endpoint
+- decide whether MVP should keep the two-step `BOT_ADDED` -> `ACTIVE` model or collapse to direct activation
+- make `DATABASE_URL` handling less brittle for local builds and non-DB routes
 - add real auth/session protection before public exposure
