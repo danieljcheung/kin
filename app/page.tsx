@@ -1,4 +1,4 @@
-import { HeroBackground } from "./components/hero-background";
+import { ShaderRipple } from "./components/shader-ripple";
 
 const valueProps = [
   {
@@ -86,7 +86,28 @@ export default function Page() {
           id="top"
           className="relative isolate overflow-hidden rounded-[2.5rem] border border-white/65 bg-white/50 px-6 py-8 shadow-[0_24px_90px_rgba(103,76,18,0.08)] backdrop-blur-sm sm:px-8 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-14 lg:px-10 lg:py-10 lg:pb-14"
         >
-          <HeroBackground />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.5rem]"
+          >
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,252,245,0.94),rgba(255,248,234,0.78))]" />
+            <ShaderRipple
+              className="absolute inset-0"
+              color1="#f7b84b"
+              color2="#f4d06f"
+              color3="#fff3bf"
+              lineWidth={0.0026}
+              rippleCount={9}
+              rotation={124}
+              timeScale={0.82}
+              opacity={0.72}
+              waveIntensity={0.12}
+              loopDuration={0.95}
+              scale={1.08}
+              mod={0.24}
+            />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(255,235,173,0.22),transparent_28%),radial-gradient(circle_at_82%_18%,rgba(255,249,224,0.52),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.42))]" />
+          </div>
 
           <div className="relative z-10 max-w-2xl">
             <span className="inline-flex items-center rounded-full border border-yellow-200 bg-white/80 px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-stone-600 shadow-sm">
