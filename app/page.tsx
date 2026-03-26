@@ -90,12 +90,12 @@ export default function Page() {
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.5rem]"
           >
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,248,232,0.92),rgba(255,239,210,0.82))]" />
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,249,242,0.92),rgba(244,241,255,0.84))]" />
             <ShaderRipple
               className="absolute inset-0"
-              color1="#d89b2b"
-              color2="#f0b43a"
-              color3="#ffe08a"
+              color1="#5f6fb3"
+              color2="#7f8fe0"
+              color3="#c7d2ff"
               lineWidth={0.0032}
               rippleCount={10}
               rotation={124}
@@ -106,7 +106,7 @@ export default function Page() {
               scale={1.08}
               mod={0.24}
             />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(255,214,120,0.28),transparent_26%),radial-gradient(circle_at_82%_18%,rgba(255,239,184,0.42),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,250,238,0.32))]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(127,143,224,0.22),transparent_24%),radial-gradient(circle_at_82%_18%,rgba(199,210,255,0.34),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.10),rgba(247,246,255,0.24))]" />
           </div>
 
           <div className="relative z-10 max-w-2xl">
