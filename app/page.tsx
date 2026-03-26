@@ -1,4 +1,4 @@
-import { ShaderRipple } from "./components/shader-ripple";
+import { BackgroundPaths } from "./components/background-paths";
 
 const valueProps = [
   {
@@ -90,23 +90,9 @@ export default function Page() {
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.5rem]"
           >
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,249,242,0.92),rgba(244,241,255,0.84))]" />
-            <ShaderRipple
-              className="absolute inset-0"
-              color1="#5f6fb3"
-              color2="#7f8fe0"
-              color3="#c7d2ff"
-              lineWidth={0.0032}
-              rippleCount={10}
-              rotation={124}
-              timeScale={0.9}
-              opacity={0.9}
-              waveIntensity={0.12}
-              loopDuration={0.95}
-              scale={1.08}
-              mod={0.24}
-            />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(127,143,224,0.22),transparent_24%),radial-gradient(circle_at_82%_18%,rgba(199,210,255,0.34),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.10),rgba(247,246,255,0.24))]" />
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,249,242,0.96),rgba(249,247,255,0.94))]" />
+            <BackgroundPaths className="text-slate-700/30 [mask-image:radial-gradient(ellipse_at_top,black_65%,transparent_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(255,236,179,0.26),transparent_24%),radial-gradient(circle_at_82%_18%,rgba(199,210,255,0.28),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.18),rgba(247,246,255,0.42))]" />
           </div>
 
           <div className="relative z-10 max-w-2xl">
