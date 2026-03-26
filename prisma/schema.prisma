@@ -1,0 +1,67 @@
+generator client {
+provider = "prisma-client-js"
+}
+
+datasource db {
+provider = "postgresql"
+}
+
+model User {
+id String @id @default(cuid())
+email String @unique
+password String
+createdAt DateTime @default(now())
+
+families Family[]
+}
+
+model Family {
+id String @id @default(cuid())
+name String
+createdAt DateTime @default(now())
+
+userId String
+user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+assistants Assistant[]
+messagingConnections MessagingConnection[]
+groupBindings GroupBinding[]
+}
+
+model Assistant {
+id String @id @default(cuid())
+name String
+status String @default("pending")
+runtimeType String @default("openclaw")
+createdAt DateTime @default(now())
+
+familyId String
+family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+}
+
+model MessagingConnection {
+id String @id @default(cuid())
+platform String @default("whatsapp")
+status String @default("unlinked")
+sessionToken String?
+qrCodeData String?
+createdAt DateTime @default(now())
+
+familyId String
+family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+groupBindings GroupBinding[]
+}
+
+model GroupBinding {
+id String @id @default(cuid())
+groupName String
+groupExternalId String
+createdAt DateTime @default(now())
+
+familyId String
+family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+messagingConnectionId String
+messagingConnection MessagingConnection @relation(fields: [messagingConnectionId], references: [id], onDelete: Cascade)
+}
