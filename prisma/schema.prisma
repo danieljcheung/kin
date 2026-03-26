@@ -1,67 +1,106 @@
 generator client {
-provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-provider = "postgresql"
+  provider = "postgresql"
+}
+
+enum UserRole {
+  OWNER
+}
+
+enum AssistantStatus {
+  PROVISIONING
+  ACTIVE
+  DISABLED
+}
+
+enum OnboardingStatus {
+  ACCOUNT_CREATED
+  TELEGRAM_GROUP_BINDING_PENDING
+  TELEGRAM_GROUP_BINDING_IN_PROGRESS
+  COMPLETE
+}
+
+enum OnboardingStep {
+  ACCOUNT_SETUP
+  TELEGRAM_GROUP_BINDING
+  COMPLETE
+}
+
+enum MessagingPlatform {
+  TELEGRAM
+}
+
+enum GroupBindingStatus {
+  INVITE_PENDING
+  BOT_ADDED
+  ACTIVE
+  FAILED
 }
 
 model User {
-id String @id @default(cuid())
-email String @unique
-password String
-createdAt DateTime @default(now())
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      UserRole @default(OWNER)
+  createdAt DateTime @default(now())
 
-families Family[]
+  ownedFamilies Family[] @relation("FamilyOwner")
 }
 
 model Family {
-id String @id @default(cuid())
-name String
-createdAt DateTime @default(now())
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
 
-userId String
-user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ownerId String
+  owner   User @relation("FamilyOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
-assistants Assistant[]
-messagingConnections MessagingConnection[]
-groupBindings GroupBinding[]
+  assistant       Assistant?
+  onboardingState OnboardingState?
+  groupBindings   GroupBinding[]
+
+  @@index([ownerId])
 }
 
 model Assistant {
-id String @id @default(cuid())
-name String
-status String @default("pending")
-runtimeType String @default("openclaw")
-createdAt DateTime @default(now())
+  id          String          @id @default(cuid())
+  name        String
+  status      AssistantStatus @default(PROVISIONING)
+  runtimeType String          @default("openclaw")
+  createdAt   DateTime        @default(now())
 
-familyId String
-family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  familyId String @unique
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 }
 
-model MessagingConnection {
-id String @id @default(cuid())
-platform String @default("whatsapp")
-status String @default("unlinked")
-sessionToken String?
-qrCodeData String?
-createdAt DateTime @default(now())
+model OnboardingState {
+  id          String           @id @default(cuid())
+  status      OnboardingStatus @default(ACCOUNT_CREATED)
+  currentStep OnboardingStep   @default(ACCOUNT_SETUP)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-familyId String
-family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-
-groupBindings GroupBinding[]
+  familyId String @unique
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 }
 
 model GroupBinding {
-id String @id @default(cuid())
-groupName String
-groupExternalId String
-createdAt DateTime @default(now())
+  id              String             @id @default(cuid())
+  platform        MessagingPlatform  @default(TELEGRAM)
+  status          GroupBindingStatus @default(INVITE_PENDING)
+  groupName       String?
+  externalGroupId String?            @unique
+  inviteToken     String             @unique
+  botUsername     String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  verifiedAt      DateTime?
 
-familyId String
-family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  familyId String
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
-messagingConnectionId String
-messagingConnection MessagingConnection @relation(fields: [messagingConnectionId], references: [id], onDelete: Cascade)
+  @@index([familyId, status])
 }
