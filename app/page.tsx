@@ -1,3 +1,5 @@
+import { HeroBackground } from "./components/hero-background";
+
 const valueProps = [
   {
     title: "Knows the family context",
@@ -82,9 +84,11 @@ export default function Page() {
 
         <section
           id="top"
-          className="grid items-center gap-14 pb-24 pt-6 lg:grid-cols-[1.05fr_0.95fr] lg:pb-28"
+          className="relative isolate overflow-hidden rounded-[2.5rem] border border-white/65 bg-white/50 px-6 py-8 shadow-[0_24px_90px_rgba(103,76,18,0.08)] backdrop-blur-sm sm:px-8 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-14 lg:px-10 lg:py-10 lg:pb-14"
         >
-          <div className="max-w-2xl">
+          <HeroBackground />
+
+          <div className="relative z-10 max-w-2xl">
             <span className="inline-flex items-center rounded-full border border-yellow-200 bg-white/80 px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-stone-600 shadow-sm">
               Lives in WhatsApp
             </span>
@@ -126,8 +130,8 @@ export default function Page() {
             </div>
           </div>
 
-          <div className="relative">
-            <div className="absolute inset-x-10 top-4 h-48 rounded-full bg-yellow-200/50 blur-3xl" />
+          <div className="relative z-10 mt-12 lg:mt-0">
+            <div className="absolute inset-x-10 top-4 h-48 rounded-full bg-yellow-200/35 blur-3xl" />
             <div className="relative overflow-hidden rounded-[2rem] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(255,248,225,0.92))] p-4 shadow-[0_24px_80px_rgba(103,76,18,0.14)] sm:p-6">
               <div className="rounded-[1.6rem] border border-stone-200/80 bg-[#f9f6ef] p-4 shadow-inner">
                 <div className="flex items-center justify-between border-b border-stone-200 pb-4">
@@ -147,8 +151,9 @@ export default function Page() {
                   </div>
                   <div className="max-w-[86%] rounded-3xl rounded-bl-md bg-white px-4 py-3 text-sm leading-6 text-stone-800 shadow-sm">
                     Absolutely. I&apos;ll remind the group the night before and
-                    again two hours before. I can also add "leave school early"
-                    to the plan if you want.
+                    again two hours before. I can also add
+                    {" "}
+                    &quot;leave school early&quot; to the plan if you want.
                   </div>
                   <div className="ml-auto max-w-[75%] rounded-3xl rounded-br-md bg-[#efe6d4] px-4 py-3 text-sm leading-6 text-stone-700">
                     Yes, and what do we still need for Saturday dinner?
