@@ -7,7 +7,6 @@ import { configureAmplify } from "@/lib/amplify";
 import { normalizeEmail } from "@/lib/auth-flow";
 import { savePendingSignupState } from "@/lib/pending-signup";
 
-
 configureAmplify();
 
 export default function SignupPage() {
@@ -27,6 +26,8 @@ return confirmPassword.length > 0 && password !== confirmPassword;
 
 async function handleSubmit(e: FormEvent<HTMLFormElement>) {
 e.preventDefault();
+
+console.log("signup submit fired");
 
 setError("");
 setSuccess("");
@@ -57,6 +58,11 @@ try {
 const normalizedEmail = normalizeEmail(email);
 const trimmedName = name.trim();
 
+console.log("before signUp", {
+email: normalizedEmail,
+name: trimmedName,
+});
+
 const result = await signUp({
 username: normalizedEmail,
 password,
@@ -69,18 +75,29 @@ autoSignIn: true,
 },
 });
 
-if (result.nextStep?.signUpStep === "CONFIRM_SIGN_UP") {
+console.log("signUp result", result);
+
 savePendingSignupState({
 email: normalizedEmail,
 password,
 name: trimmedName,
 });
-router.replace(`/signup/confirm?email=${encodeURIComponent(normalizedEmail)}`);
-return;
-} else {
-setSuccess("Account created successfully.");
+
+const target = `/signup/confirm?email=${encodeURIComponent(normalizedEmail)}`;
+
+console.log("redirecting to", target);
+setSuccess("Account created. Redirecting to verification...");
+
+router.replace(target);
+
+setTimeout(() => {
+if (window.location.pathname === "/signup") {
+console.log("router.replace did not move page, forcing hard redirect");
+window.location.href = target;
 }
+}, 300);
 } catch (err) {
+console.error("signup failed", err);
 const message =
 err instanceof Error ? err.message : "Something went wrong during sign up.";
 setError(message);
