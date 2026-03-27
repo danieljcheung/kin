@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -161,7 +162,13 @@ export default function ConnectTelegramPage() {
 
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Link
-                  href="/onboarding/waiting"
+                  href={{
+                    pathname: "/onboarding/waiting",
+                    query: {
+                      ...(bindingId ? { bindingId } : {}),
+                      ...(onboardingToken ? { onboardingToken } : {}),
+                    },
+                  }}
                   className="inline-flex items-center justify-center rounded-full border border-stone-300 px-6 py-3.5 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900"
                 >
                   I added Kin already
@@ -187,11 +194,13 @@ export default function ConnectTelegramPage() {
                         Scan to open Telegram
                       </p>
                       <div className="mt-4 overflow-hidden rounded-[1.5rem] border border-stone-200 bg-white p-4">
-                        <img
+                        <Image
                           src={qrCodeUrl}
                           alt="QR code for the Telegram deep link"
                           width={280}
                           height={280}
+                          sizes="280px"
+                          unoptimized
                           className="h-auto w-full rounded-2xl"
                         />
                       </div>
