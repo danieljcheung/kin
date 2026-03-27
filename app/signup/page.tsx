@@ -4,6 +4,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { signUp } from "aws-amplify/auth";
 import { useRouter } from "next/navigation";
 import { configureAmplify } from "@/lib/amplify";
+import { normalizeEmail } from "@/lib/auth-flow";
 import { savePendingSignupState } from "@/lib/pending-signup";
 
 
@@ -53,7 +54,7 @@ return;
 setLoading(true);
 
 try {
-const normalizedEmail = email.trim().toLowerCase();
+const normalizedEmail = normalizeEmail(email);
 const trimmedName = name.trim();
 
 const result = await signUp({
@@ -74,8 +75,9 @@ if (result.nextStep?.signUpStep === "CONFIRM_SIGN_UP") {
 savePendingSignupState({
 email: normalizedEmail,
 password,
+name: trimmedName,
 });
-router.replace(`/signup/confirm?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+router.replace(`/signup/confirm?email=${encodeURIComponent(normalizedEmail)}`);
 return;
 } else {
 setSuccess("Account created successfully.");

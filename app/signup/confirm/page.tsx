@@ -10,6 +10,7 @@ import {
   signIn,
 } from "aws-amplify/auth";
 import { configureAmplify } from "@/lib/amplify";
+import { buildSigninHref, normalizeEmail } from "@/lib/auth-flow";
 import {
   clearPendingSignupState,
   loadPendingSignupState,
@@ -18,16 +19,16 @@ import {
 configureAmplify();
 
 const CODE_LENGTH = 6;
-const SESSION_RECOVERY_MESSAGE =
-  "Your email is verified, but we could not finish signing you in automatically. Start over from sign up in this browser to continue.";
+const SESSION_RECOVERY_REDIRECT = "SIGNIN_REQUIRED";
 
 export default function ConfirmSignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [storedEmail, setStoredEmail] = useState("");
   const email = useMemo(() => {
-    const searchEmail = searchParams.get("email")?.trim().toLowerCase();
-    return searchEmail || storedEmail;
+    const searchEmail = searchParams.get("email");
+    const normalizedSearchEmail = searchEmail ? normalizeEmail(searchEmail) : "";
+    return normalizedSearchEmail || storedEmail;
   }, [searchParams, storedEmail]);
 
   const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(""));
@@ -74,7 +75,7 @@ export default function ConfirmSignupPage() {
     const pendingSignup = loadPendingSignupState();
 
     if (!pendingSignup || pendingSignup.email !== username) {
-      throw new Error(SESSION_RECOVERY_MESSAGE);
+      throw new Error(SESSION_RECOVERY_REDIRECT);
     }
 
     await signIn({
@@ -86,7 +87,7 @@ export default function ConfirmSignupPage() {
     });
 
     if (!(await confirmedSignIn())) {
-      throw new Error(SESSION_RECOVERY_MESSAGE);
+      throw new Error(SESSION_RECOVERY_REDIRECT);
     }
   }
 
@@ -182,6 +183,20 @@ export default function ConfirmSignupPage() {
         router.replace("/onboarding/household");
       }, 800);
     } catch (err) {
+      if (
+        err instanceof Error &&
+        err.message === SESSION_RECOVERY_REDIRECT
+      ) {
+        router.replace(
+          buildSigninHref({
+            email,
+            next: "/onboarding/household",
+            reason: "verified",
+          }),
+        );
+        return;
+      }
+
       const message =
         err instanceof Error ? err.message : "Unable to verify code.";
       setError(message);
@@ -229,7 +244,10 @@ export default function ConfirmSignupPage() {
             </h1>
             <p className="mt-3 text-sm leading-6 text-stone-600">
               Enter the 6-digit code we sent to{" "}
-              <span className="font-medium text-stone-800">{email || "your email"}</span>.
+              <span className="font-medium text-stone-800">
+                {email ? normalizeEmail(email) : "your email"}
+              </span>
+              .
             </p>
           </div>
 

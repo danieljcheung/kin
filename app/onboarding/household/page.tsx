@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { fetchUserAttributes, getCurrentUser } from "aws-amplify/auth";
 import { useRouter } from "next/navigation";
 import { configureAmplify } from "@/lib/amplify";
+import { buildSigninHref } from "@/lib/auth-flow";
+import { loadPendingSignupState } from "@/lib/pending-signup";
 
 configureAmplify();
 
@@ -22,7 +24,7 @@ function getAuthErrorMessage(err: unknown) {
     err.message.includes("authenticated") ||
     err.message.includes("No current user")
   ) {
-    return "Your account is verified, but this browser is not signed in yet. Return to sign up and complete verification again in the same browser.";
+    return "Sign in to continue your household setup.";
   }
 
   return err.message;
@@ -39,6 +41,9 @@ export default function HouseholdOnboardingPage() {
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [signinHref, setSigninHref] = useState(
+    buildSigninHref({ next: "/onboarding/household" }),
+  );
 
   useEffect(() => {
     async function loadIdentity() {
@@ -59,6 +64,17 @@ export default function HouseholdOnboardingPage() {
     }
 
     loadIdentity();
+  }, []);
+
+  useEffect(() => {
+    const pendingSignup = loadPendingSignupState();
+
+    setSigninHref(
+      buildSigninHref({
+        email: pendingSignup?.email,
+        next: "/onboarding/household",
+      }),
+    );
   }, []);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -165,10 +181,10 @@ export default function HouseholdOnboardingPage() {
           {!loadingIdentity && !identity ? (
             <button
               type="button"
-              onClick={() => router.push("/signup")}
+              onClick={() => router.push(signinHref)}
               className="w-full rounded-full border border-stone-300 px-6 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900"
             >
-              Back to sign up
+              Sign in to continue
             </button>
           ) : null}
 
