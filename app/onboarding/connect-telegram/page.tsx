@@ -17,6 +17,16 @@ async function copyText(value: string) {
   throw new Error("Clipboard unavailable");
 }
 
+function getQrCodeUrl(value: string) {
+  const params = new URLSearchParams({
+    size: "280x280",
+    data: value,
+    margin: "0",
+  });
+
+  return `https://api.qrserver.com/v1/create-qr-code/?${params.toString()}`;
+}
+
 export default function ConnectTelegramPage() {
   const searchParams = useSearchParams();
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
@@ -24,6 +34,7 @@ export default function ConnectTelegramPage() {
   const bindingId = searchParams.get("bindingId");
   const onboardingToken = searchParams.get("onboardingToken");
   const deepLink = searchParams.get("deepLink");
+  const qrCodeUrl = deepLink ? getQrCodeUrl(deepLink) : null;
 
   async function handleCopyLink() {
     if (!deepLink) return;
@@ -164,25 +175,49 @@ export default function ConnectTelegramPage() {
               </h2>
               <p className="mt-2 text-sm leading-6 text-stone-600">
                 Telegram setup works best on mobile. Use the button above if
-                you&apos;re already on your phone, or copy the link and open it there.
+                you&apos;re already on your phone, or scan the QR code to open the
+                same Telegram deep link on your device.
               </p>
 
               <div className="mt-5 rounded-3xl border border-stone-200 bg-white p-5 shadow-[0_16px_40px_rgba(103,76,18,0.06)]">
                 <div className="rounded-[1.75rem] border border-stone-200 bg-[linear-gradient(180deg,rgba(255,248,235,0.9),rgba(255,255,255,1))] p-5">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                    Mobile handoff
-                  </p>
-                  <ul className="mt-4 space-y-3 text-sm leading-6 text-stone-600">
-                    <li>Open the Telegram link on the device where you use Telegram.</li>
-                    <li>Start the Kin bot and follow the onboarding prompt.</li>
-                    <li>Add Kin to your family group, then come back here.</li>
-                  </ul>
+                  {qrCodeUrl ? (
+                    <>
+                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
+                        Scan to open Telegram
+                      </p>
+                      <div className="mt-4 overflow-hidden rounded-[1.5rem] border border-stone-200 bg-white p-4">
+                        <img
+                          src={qrCodeUrl}
+                          alt="QR code for the Telegram deep link"
+                          width={280}
+                          height={280}
+                          className="h-auto w-full rounded-2xl"
+                        />
+                      </div>
+                      <p className="mt-4 text-sm leading-6 text-stone-600">
+                        Scan this code with your phone camera to open the same Telegram
+                        deep link as the button above.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
+                        QR code unavailable
+                      </p>
+                      <div className="mt-4 rounded-[1.5rem] border border-dashed border-stone-300 bg-white/80 px-4 py-8 text-center">
+                        <p className="text-sm font-medium text-stone-700">
+                          We&apos;ll show a QR code here once the Telegram deep link is ready.
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-stone-600">
+                          Use the direct link button when it becomes available, or come
+                          back after restarting this step.
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
-
-              <p className="mt-4 text-xs leading-5 text-stone-500">
-                No QR code is required here. The direct Telegram link is the fastest path.
-              </p>
             </div>
           </div>
         </div>
