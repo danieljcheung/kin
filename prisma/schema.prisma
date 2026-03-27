@@ -34,7 +34,7 @@ enum MessagingPlatform {
 }
 
 enum GroupBindingStatus {
-  INVITE_PENDING
+  DM_STARTED
   BOT_ADDED
   ACTIVE
   FAILED
@@ -92,10 +92,10 @@ model OnboardingState {
 model GroupBinding {
   id              String             @id @default(cuid())
   platform        MessagingPlatform  @default(TELEGRAM)
-  status          GroupBindingStatus @default(INVITE_PENDING)
+  status          GroupBindingStatus @default(DM_STARTED)
   groupName       String?
   externalGroupId String?            @unique
-  inviteToken     String             @unique
+  onboardingToken String             @unique
   botUsername     String?
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt

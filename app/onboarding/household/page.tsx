@@ -127,7 +127,7 @@ export default function HouseholdOnboardingPage() {
       setSuccess("Household created successfully.");
 
       const deepLink = result?.data?.telegram?.deepLink;
-      const inviteToken = result?.data?.telegram?.binding?.inviteToken;
+      const onboardingToken = result?.data?.telegram?.binding?.onboardingToken;
       const bindingId = result?.data?.telegram?.binding?.id;
 
       const nextUrl = new URL(
@@ -136,7 +136,9 @@ export default function HouseholdOnboardingPage() {
       );
 
       if (bindingId) nextUrl.searchParams.set("bindingId", bindingId);
-      if (inviteToken) nextUrl.searchParams.set("inviteToken", inviteToken);
+      if (onboardingToken) {
+        nextUrl.searchParams.set("onboardingToken", onboardingToken);
+      }
       if (deepLink) nextUrl.searchParams.set("deepLink", deepLink);
 
       router.push(nextUrl.pathname + nextUrl.search);

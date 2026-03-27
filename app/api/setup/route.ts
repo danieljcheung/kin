@@ -90,13 +90,12 @@ function validateSetupPayload(body: unknown):
   return { success: true, data };
 }
 
-function buildTelegramDeepLink(inviteToken: string) {
+function buildTelegramDeepLink(onboardingToken: string) {
   if (!TELEGRAM_BOT_USERNAME) {
     return null;
   }
 
-  const startGroupParam = encodeURIComponent(`kin-${inviteToken}`);
-  return `https://t.me/${TELEGRAM_BOT_USERNAME}?startgroup=${startGroupParam}`;
+  return `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${encodeURIComponent(onboardingToken)}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -123,7 +122,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const hashedPassword = await bcrypt.hash(password, 12);
-    const inviteToken = randomBytes(18).toString("base64url");
+    const onboardingToken = randomBytes(18).toString("base64url");
 
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -160,7 +159,7 @@ export async function POST(req: NextRequest) {
       const binding = await tx.groupBinding.create({
         data: {
           familyId: family.id,
-          inviteToken,
+          onboardingToken,
           botUsername: TELEGRAM_BOT_USERNAME,
         },
       });
@@ -199,12 +198,12 @@ export async function POST(req: NextRequest) {
           },
           telegram: {
             botUsername: result.binding.botUsername,
-            deepLink: buildTelegramDeepLink(result.binding.inviteToken),
+            deepLink: buildTelegramDeepLink(result.binding.onboardingToken),
             binding: {
               id: result.binding.id,
               platform: result.binding.platform,
               status: result.binding.status,
-              inviteToken: result.binding.inviteToken,
+              onboardingToken: result.binding.onboardingToken,
             },
           },
         },

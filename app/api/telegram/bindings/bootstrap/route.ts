@@ -23,13 +23,12 @@ function jsonError(
   );
 }
 
-function buildTelegramDeepLink(inviteToken: string) {
+function buildTelegramDeepLink(onboardingToken: string) {
   if (!TELEGRAM_BOT_USERNAME) {
     return null;
   }
 
-  const startGroupParam = encodeURIComponent(`kin-${inviteToken}`);
-  return `https://t.me/${TELEGRAM_BOT_USERNAME}?startgroup=${startGroupParam}`;
+  return `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${encodeURIComponent(onboardingToken)}`;
 }
 
 function mapOnboardingStatus(bindingStatus: string) {
@@ -57,11 +56,18 @@ export async function POST(req: NextRequest) {
     return jsonError(400, "VALIDATION_ERROR", "Request body must be a JSON object.");
   }
 
-  const { bindingId, inviteToken } = body as Record<string, unknown>;
+  const { bindingId, onboardingToken, inviteToken } = body as Record<
+    string,
+    unknown
+  >;
   const normalizedBindingId =
     typeof bindingId === "string" ? bindingId.trim() : "";
-  const normalizedInviteToken =
-    typeof inviteToken === "string" ? inviteToken.trim() : "";
+  const normalizedOnboardingToken =
+    typeof onboardingToken === "string"
+      ? onboardingToken.trim()
+      : typeof inviteToken === "string"
+        ? inviteToken.trim()
+        : "";
 
   const details: Record<string, string> = {};
 
@@ -69,8 +75,8 @@ export async function POST(req: NextRequest) {
     details.bindingId = "Binding ID is required.";
   }
 
-  if (!normalizedInviteToken) {
-    details.inviteToken = "Invite token is required.";
+  if (!normalizedOnboardingToken) {
+    details.onboardingToken = "Onboarding token is required.";
   }
 
   if (Object.keys(details).length > 0) {
@@ -86,7 +92,7 @@ export async function POST(req: NextRequest) {
     const binding = await prisma.groupBinding.findFirst({
       where: {
         id: normalizedBindingId,
-        inviteToken: normalizedInviteToken,
+        onboardingToken: normalizedOnboardingToken,
         platform: "TELEGRAM",
       },
       include: {
@@ -116,13 +122,14 @@ export async function POST(req: NextRequest) {
         },
         telegram: {
           botUsername: binding.botUsername,
-          deepLink: buildTelegramDeepLink(binding.inviteToken),
+          deepLink: buildTelegramDeepLink(binding.onboardingToken),
           binding: {
             id: binding.id,
             platform: binding.platform,
             status: binding.status,
             groupName: binding.groupName,
             externalGroupId: binding.externalGroupId,
+            onboardingToken: binding.onboardingToken,
             verifiedAt: binding.verifiedAt,
           },
         },

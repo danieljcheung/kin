@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 export const runtime = "nodejs";
 
 type CompleteBindingPayload = {
-inviteToken: string;
+onboardingToken: string;
 telegramGroupId: string;
 telegramGroupTitle?: string;
 botUsername?: string;
@@ -50,8 +50,8 @@ const rawEventType = normalizeString(raw.eventType);
 
 const errors: Record<string, string> = {};
 
-if (!normalizeString(raw.inviteToken)) {
-errors.inviteToken = "Invite token is required.";
+if (!normalizeString(raw.onboardingToken) && !normalizeString(raw.inviteToken)) {
+errors.onboardingToken = "Onboarding token is required.";
 }
 
 if (!normalizeString(raw.telegramGroupId)) {
@@ -75,7 +75,8 @@ return { success: false, errors };
 return {
 success: true,
 data: {
-inviteToken: normalizeString(raw.inviteToken),
+onboardingToken:
+normalizeString(raw.onboardingToken) || normalizeString(raw.inviteToken),
 telegramGroupId: normalizeString(raw.telegramGroupId),
 telegramGroupTitle: normalizeString(raw.telegramGroupTitle) || undefined,
 botUsername: normalizeString(raw.botUsername) || undefined,
@@ -128,17 +129,12 @@ validation.errors,
 );
 }
 
-const {
-inviteToken,
-telegramGroupId,
-telegramGroupTitle,
-botUsername,
-eventType,
-} = validation.data;
+const { onboardingToken, telegramGroupId, telegramGroupTitle, botUsername, eventType } =
+validation.data;
 
 const binding = await prisma.groupBinding.findFirst({
 where: {
-inviteToken,
+onboardingToken,
 platform: "TELEGRAM",
 },
 include: {
@@ -155,7 +151,7 @@ if (!binding) {
 return jsonError(
 404,
 "BINDING_NOT_FOUND",
-"No Telegram binding matches that invite token.",
+"No Telegram binding matches that onboarding token.",
 );
 }
 
