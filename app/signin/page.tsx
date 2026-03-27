@@ -108,18 +108,18 @@ export default function SigninPage() {
     setLoading(true);
 
     try {
-      await signIn({
-      username: normalized,
-      password,
+      const result = await signIn({
+        username: normalized,
+        password,
       });
 
-      console.log("signIn result", result);
-
       if (
-      result.nextStep?.signInStep &&
-      result.nextStep.signInStep !== "DONE"
+        result.nextStep?.signInStep &&
+        result.nextStep.signInStep !== "DONE"
       ) {
-      throw new Error(`Sign-in requires additional step: ${result.nextStep.signInStep}`);
+        throw new Error(
+          `Sign-in requires additional step: ${result.nextStep.signInStep}`,
+        );
       }
 
       clearPendingSignupState();

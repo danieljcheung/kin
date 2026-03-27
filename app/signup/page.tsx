@@ -65,9 +65,7 @@ userAttributes: {
 email: normalizedEmail,
 name: trimmedName,
 },
-autoSignIn: {
-authFlowType: "USER_AUTH",
-},
+autoSignIn: true,
 },
 });
 
