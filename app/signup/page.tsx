@@ -4,6 +4,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { signUp } from "aws-amplify/auth";
 import { useRouter } from "next/navigation";
 import { configureAmplify } from "@/lib/amplify";
+import { savePendingSignupState } from "@/lib/pending-signup";
 
 
 configureAmplify();
@@ -18,7 +19,6 @@ const [confirmPassword, setConfirmPassword] = useState("");
 const [loading, setLoading] = useState(false);
 const [error, setError] = useState("");
 const [success, setSuccess] = useState("");
-const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
 const passwordMismatch = useMemo(() => {
 return confirmPassword.length > 0 && password !== confirmPassword;
@@ -54,6 +54,7 @@ setLoading(true);
 
 try {
 const normalizedEmail = email.trim().toLowerCase();
+const trimmedName = name.trim();
 
 const result = await signUp({
 username: normalizedEmail,
@@ -61,7 +62,7 @@ password,
 options: {
 userAttributes: {
 email: normalizedEmail,
-name: name.trim(),
+name: trimmedName,
 },
 autoSignIn: {
 authFlowType: "USER_AUTH",
@@ -70,7 +71,11 @@ authFlowType: "USER_AUTH",
 });
 
 if (result.nextStep?.signUpStep === "CONFIRM_SIGN_UP") {
-router.push(`/signup/confirm?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+savePendingSignupState({
+email: normalizedEmail,
+password,
+});
+router.replace(`/signup/confirm?email=${encodeURIComponent(email.trim().toLowerCase())}`);
 return;
 } else {
 setSuccess("Account created successfully.");
@@ -180,12 +185,6 @@ className="inline-flex w-full items-center justify-center rounded-full bg-stone-
 {loading ? "Creating account..." : "Create account"}
 </button>
 </form>
-
-{needsConfirmation ? (
-<p className="mt-6 text-sm text-stone-600">
-Next step: we’ll build the email verification screen, then move into household setup.
-</p>
-) : null}
 </div>
 </div>
 </main>
