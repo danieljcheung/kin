@@ -79,11 +79,11 @@ export default function ConfirmSignupPage() {
     }
 
     await signIn({
-      username,
-      password: pendingSignup.password,
-      options: {
-        authFlowType: "USER_AUTH",
-      },
+    username,
+    password: pendingSignup.password,
+    options: {
+    authFlowType: "USER_AUTH",
+    },
     });
 
     if (!(await confirmedSignIn())) {

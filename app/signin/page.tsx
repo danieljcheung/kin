@@ -109,17 +109,17 @@ export default function SigninPage() {
 
     try {
       await signIn({
-        username: normalized,
-        password,
-        options: {
-          authFlowType: "USER_AUTH",
-        },
+      username: normalized,
+      password,
       });
 
-      const session = await fetchAuthSession();
+      console.log("signIn result", result);
 
-      if (!session.tokens?.accessToken) {
-        throw new Error("We could not finish signing you in. Please try again.");
+      if (
+      result.nextStep?.signInStep &&
+      result.nextStep.signInStep !== "DONE"
+      ) {
+      throw new Error(`Sign-in requires additional step: ${result.nextStep.signInStep}`);
       }
 
       clearPendingSignupState();
