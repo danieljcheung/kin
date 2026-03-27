@@ -82,7 +82,7 @@ return value
 .slice(0, 40);
 }
 
-function buildInviteToken(familyName: string) {
+function buildOnboardingToken(familyName: string) {
 const base = slugifyFamilyName(familyName) || "kin";
 const suffix = Math.random().toString(36).slice(2, 10);
 return `${base}-${suffix}`;
@@ -183,14 +183,14 @@ currentStep: "TELEGRAM_GROUP_BINDING",
 },
 });
 
-const inviteToken = buildInviteToken(familyName);
+const onboardingToken = buildOnboardingToken(familyName);
 
 const groupBinding = await tx.groupBinding.create({
 data: {
 familyId: family.id,
 platform: "TELEGRAM",
-status: "INVITE_PENDING",
-inviteToken,
+status: "DM_STARTED",
+onboardingToken,
 botUsername: process.env.KIN_TELEGRAM_BOT_USERNAME || null,
 },
 });
@@ -206,8 +206,8 @@ groupBinding,
 
 const telegramBotUsername = process.env.KIN_TELEGRAM_BOT_USERNAME;
 const telegramDeepLink =
-telegramBotUsername && result.groupBinding.inviteToken
-? `https://t.me/${telegramBotUsername}?start=${encodeURIComponent(result.groupBinding.inviteToken)}`
+telegramBotUsername && result.groupBinding.onboardingToken
+? `https://t.me/${telegramBotUsername}?start=${encodeURIComponent(result.groupBinding.onboardingToken)}`
 : null;
 
 return NextResponse.json({
@@ -238,7 +238,7 @@ binding: {
 id: result.groupBinding.id,
 status: result.groupBinding.status,
 platform: result.groupBinding.platform,
-inviteToken: result.groupBinding.inviteToken,
+onboardingToken: result.groupBinding.onboardingToken,
 botUsername: result.groupBinding.botUsername,
 },
 deepLink: telegramDeepLink,
