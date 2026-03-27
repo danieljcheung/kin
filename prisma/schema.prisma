@@ -90,19 +90,24 @@ model OnboardingState {
 }
 
 model GroupBinding {
-  id              String             @id @default(cuid())
-  platform        MessagingPlatform  @default(TELEGRAM)
-  status          GroupBindingStatus @default(DM_STARTED)
-  groupName       String?
-  externalGroupId String?            @unique
-  onboardingToken String             @unique
-  botUsername     String?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  verifiedAt      DateTime?
+  id                 String             @id @default(cuid())
+  platform           MessagingPlatform  @default(TELEGRAM)
+  status             GroupBindingStatus @default(DM_STARTED)
+  groupName          String?
+  externalGroupId    String?            @unique
+  onboardingToken    String             @unique
+  botUsername        String?
+  telegramDmUserId    String?
+  telegramDmChatId    String?
+  telegramDmUsername  String?
+  telegramDmFirstName String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  verifiedAt         DateTime?
 
   familyId String
   family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   @@index([familyId, status])
+  @@index([telegramDmUserId, status])
 }
