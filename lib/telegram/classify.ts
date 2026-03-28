@@ -172,9 +172,17 @@ export function classifyTelegramEvent(
     };
   }
 
+  if (isPureChatter && !hasIntent && !isRelevantContext) {
+    return {
+      decision: "ignore",
+      reason: "pure_chatter",
+      signals,
+    };
+  }
+
   if (isExplicitMention) {
     return {
-      decision: hasIntent ? "handoff_fast" : "ingest_only",
+      decision: "handoff_fast",
       reason: hasIntent ? "explicit_mention_intent" : "explicit_mention_context",
       signals,
     };
@@ -182,7 +190,7 @@ export function classifyTelegramEvent(
 
   if (hasNameReference) {
     return {
-      decision: hasIntent ? "handoff_fast" : "ingest_only",
+      decision: "handoff_fast",
       reason: hasIntent ? "assistant_name_intent" : "assistant_name_context",
       signals,
     };
@@ -190,7 +198,7 @@ export function classifyTelegramEvent(
 
   if (hasIntent) {
     return {
-      decision: "handoff_background",
+      decision: "handoff_fast",
       reason: "assistant_intent_without_mention",
       signals,
     };
