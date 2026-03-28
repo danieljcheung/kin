@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { classifyTelegramEvent } from "@/lib/telegram/classify";
+import { normalizeTelegramUpdate } from "@/lib/telegram/normalize";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const GROUP_CHAT_TYPES = new Set(["group", "supergroup"]);
-const ACTIVE_BOT_STATUSES = new Set(["member", "administrator"]);
+const KIN_TELEGRAM_BOT_USERNAME = process.env.KIN_TELEGRAM_BOT_USERNAME;
 const PENDING_BINDING_STATUSES = ["DM_STARTED", "BOT_ADDED"] as const;
 
 export const runtime = "nodejs";
@@ -49,74 +50,57 @@ function extractStartToken(text: string): string | null {
   return parts.slice(1).join(" ");
 }
 
-function isGroupActivationEvent(chatType: unknown, newStatus: unknown) {
-  return (
-    typeof chatType === "string" &&
-    GROUP_CHAT_TYPES.has(chatType) &&
-    typeof newStatus === "string" &&
-    ACTIVE_BOT_STATUSES.has(newStatus)
-  );
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const event = normalizeTelegramUpdate(body);
+    const classification = classifyTelegramEvent(event, {
+      botUsername: KIN_TELEGRAM_BOT_USERNAME,
+    });
+
     console.log("Telegram webhook update:", JSON.stringify(body, null, 2));
-
-    const message = body?.message;
-    const myChatMember = body?.my_chat_member;
-
-    const chat = message?.chat;
-    const chatId = chat?.id;
-    const chatType = chat?.type;
-    const text = message?.text;
-    const from = message?.from;
-
-    const memberChat = myChatMember?.chat;
-    const memberChatId = memberChat?.id;
-    const memberChatType = memberChat?.type;
-    const memberChatTitle = memberChat?.title;
-    const memberFrom = myChatMember?.from;
-    const newChatMember = myChatMember?.new_chat_member;
-
-    console.log("telegram parsed message event", {
-      chatId,
-      chatType,
-      text,
-      from,
+    console.log("telegram normalized event", {
+      updateId: event.updateId,
+      kind: event.kind,
+      scope: event.kind === "unsupported" ? null : event.scope,
+      decision: classification.decision,
+      reason: classification.reason,
+      signals: classification.signals,
     });
 
-    console.log("telegram parsed membership event", {
-      memberChatId,
-      memberChatType,
-      memberChatTitle,
-      memberFrom,
-      newChatMember,
-    });
-
-    if (chatId && typeof text === "string" && text.startsWith("/start")) {
-      if (chatType !== "private") {
+    if (
+      event.kind === "message" &&
+      classification.decision === "onboarding_event" &&
+      event.text?.startsWith("/start")
+    ) {
+      if (event.scope !== "private") {
         await sendTelegramMessage(
-          chatId,
+          event.chat.id,
           "Open a direct message with this bot and send the setup link there.",
         );
         return NextResponse.json({ ok: true });
       }
 
-      const token = extractStartToken(text);
+      const token = extractStartToken(event.text);
 
       if (!token) {
-        await sendTelegramMessage(chatId, "Kin is connected. Use the setup link from Kin to continue.");
+        await sendTelegramMessage(
+          event.chat.id,
+          "Kin is connected. Use the setup link from Kin to continue.",
+        );
         return NextResponse.json({ ok: true });
       }
 
-      if (!from?.id) {
-        await sendTelegramMessage(chatId, "Could not identify your Telegram account. Try again from your own Telegram user.");
+      if (!event.from?.id) {
+        await sendTelegramMessage(
+          event.chat.id,
+          "Could not identify your Telegram account. Try again from your own Telegram user.",
+        );
         return NextResponse.json({ ok: true });
       }
 
-      const telegramDmUserId = String(from.id);
-      const telegramDmChatId = String(chatId);
+      const telegramDmUserId = event.from.id;
+      const telegramDmChatId = event.chat.id;
 
       const bindingResult = await prisma.$transaction(async (tx) => {
         const binding = await tx.groupBinding.findFirst({
@@ -178,8 +162,8 @@ export async function POST(req: NextRequest) {
             status: "DM_STARTED",
             telegramDmUserId,
             telegramDmChatId,
-            telegramDmUsername: typeof from.username === "string" ? from.username : null,
-            telegramDmFirstName: typeof from.first_name === "string" ? from.first_name : null,
+            telegramDmUsername: event.from?.username ?? null,
+            telegramDmFirstName: event.from?.firstName ?? null,
           },
         });
 
@@ -192,7 +176,7 @@ export async function POST(req: NextRequest) {
 
       if (bindingResult.kind === "binding_not_found") {
         await sendTelegramMessage(
-          chatId,
+          event.chat.id,
           "That setup link is invalid or expired. Go back to Kin and generate a new one.",
         );
         return NextResponse.json({ ok: true });
@@ -200,7 +184,7 @@ export async function POST(req: NextRequest) {
 
       if (bindingResult.kind === "already_active") {
         await sendTelegramMessage(
-          chatId,
+          event.chat.id,
           `Telegram is already connected for ${bindingResult.familyName}.`,
         );
         return NextResponse.json({ ok: true });
@@ -208,14 +192,14 @@ export async function POST(req: NextRequest) {
 
       if (bindingResult.kind === "user_conflict") {
         await sendTelegramMessage(
-          chatId,
+          event.chat.id,
           `This Telegram account is already in the middle of setup for ${bindingResult.familyName}. Finish that setup first or restart from Kin.`,
         );
         return NextResponse.json({ ok: true });
       }
 
       await sendTelegramMessage(
-        chatId,
+        event.chat.id,
         `Got it. This setup link is for ${bindingResult.familyName}. Next, add this bot to your family Telegram group. I will finish setup when your Telegram account adds or approves the bot there.`,
       );
 
@@ -223,11 +207,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (
-      memberChatId &&
-      isGroupActivationEvent(memberChatType, newChatMember?.status)
+      event.kind === "my_chat_member" &&
+      classification.decision === "onboarding_event"
     ) {
-      const activatingTelegramUserId =
-        memberFrom?.id !== undefined ? String(memberFrom.id) : null;
+      const memberChatId = event.chat.id;
+      const memberChatTitle = event.chat.title;
+      const activatingTelegramUserId = event.from?.id ?? null;
 
       if (!activatingTelegramUserId) {
         console.log("Ignoring group activation event without actor user id", {
@@ -338,6 +323,8 @@ export async function POST(req: NextRequest) {
         memberChatTitle,
         activatingTelegramUserId,
       });
+
+      return NextResponse.json({ ok: true });
     }
 
     return NextResponse.json({ ok: true });
