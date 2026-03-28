@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { loadKinConversationContext } from "@/lib/kin/context";
 import { classifyTelegramEvent } from "@/lib/telegram/classify";
 import { ingestTelegramEvent } from "@/lib/telegram/ingest";
 import { normalizeTelegramUpdate } from "@/lib/telegram/normalize";
+import { runOpenClawFastHandoff } from "@/lib/telegram/openclaw";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const KIN_TELEGRAM_BOT_USERNAME = process.env.KIN_TELEGRAM_BOT_USERNAME;
@@ -10,10 +13,26 @@ const PENDING_BINDING_STATUSES = ["DM_STARTED", "BOT_ADDED"] as const;
 
 export const runtime = "nodejs";
 
-async function sendTelegramMessage(chatId: number | string, text: string) {
+interface PersistedKinEventContextRow {
+  id: string;
+  familyId: string | null;
+}
+
+async function sendTelegramMessage(
+  chatId: number | string,
+  text: string,
+  options?: {
+    replyToMessageId?: string | null;
+  },
+) {
   if (!TELEGRAM_BOT_TOKEN) {
     throw new Error("Missing TELEGRAM_BOT_TOKEN");
   }
+
+  const replyToMessageId =
+    options?.replyToMessageId && /^\d+$/.test(options.replyToMessageId)
+      ? Number(options.replyToMessageId)
+      : undefined;
 
   const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: "POST",
@@ -23,6 +42,13 @@ async function sendTelegramMessage(chatId: number | string, text: string) {
     body: JSON.stringify({
       chat_id: chatId,
       text,
+      ...(replyToMessageId
+        ? {
+            reply_parameters: {
+              message_id: replyToMessageId,
+            },
+          }
+        : {}),
     }),
   });
 
@@ -86,6 +112,69 @@ export async function POST(req: NextRequest) {
         eventId: ingestionResult.eventId,
         category: ingestionResult.category,
       });
+    }
+
+    if (
+      event.kind === "message" &&
+      classification.decision === "handoff_fast" &&
+      ingestionResult.status === "ingested" &&
+      ingestionResult.eventId
+    ) {
+      try {
+        const persistedRows = await prisma.$queryRaw<PersistedKinEventContextRow[]>(
+          Prisma.sql`
+            SELECT "id", "familyId"
+            FROM "KinEvent"
+            WHERE "id" = ${ingestionResult.eventId}
+            LIMIT 1
+          `,
+        );
+        const persistedEvent = persistedRows[0] ?? null;
+
+        if (!persistedEvent?.familyId) {
+          console.log("Skipping OpenClaw fast handoff without family context", {
+            eventId: ingestionResult.eventId,
+            updateId: event.updateId,
+          });
+          return NextResponse.json({ ok: true });
+        }
+
+        const context = await loadKinConversationContext(persistedEvent.id);
+
+        if (!context) {
+          console.warn("Skipping OpenClaw fast handoff without persisted context", {
+            eventId: persistedEvent.id,
+            updateId: event.updateId,
+          });
+          return NextResponse.json({ ok: true });
+        }
+
+        const handoffResponse = await runOpenClawFastHandoff({
+          familyId: persistedEvent.familyId,
+          event,
+          context,
+        });
+
+        console.log("OpenClaw fast handoff result", {
+          eventId: persistedEvent.id,
+          familyId: persistedEvent.familyId,
+          kind: handoffResponse.kind,
+        });
+
+        if (handoffResponse.kind === "reply" || handoffResponse.kind === "clarify") {
+          await sendTelegramMessage(event.chat.id, handoffResponse.text, {
+            replyToMessageId: event.messageId,
+          });
+        }
+      } catch (error) {
+        console.error("OpenClaw fast handoff failed", {
+          updateId: event.updateId,
+          eventId: ingestionResult.eventId,
+          error,
+        });
+      }
+
+      return NextResponse.json({ ok: true });
     }
 
     if (
