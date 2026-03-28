@@ -5,13 +5,34 @@ import type { TelegramMessageEvent } from "@/lib/telegram/types";
 import type { KinConversationContext, KinContextEvent } from "@/lib/kin/context";
 
 const execFileAsync = promisify(execFile);
-const OPENCLAW_COMMAND = process.env.OPENCLAW_BIN?.trim() || "openclaw";
 const OPENCLAW_TIMEOUT_MS = 30_000;
+
+export type OpenClawTransportMode = "local-cli" | "disabled" | "remote-gateway";
 
 export type OpenClawHandoffResponse =
   | { kind: "no_reply" }
   | { kind: "reply"; text: string }
   | { kind: "clarify"; text: string };
+
+interface OpenClawTransportRequest {
+  sessionLabel: string;
+  prompt: string;
+}
+
+type OpenClawTransportResult =
+  | { status: "ok"; output: string }
+  | { status: "unavailable"; reason: string };
+
+interface OpenClawTransport {
+  mode: OpenClawTransportMode;
+  invoke(request: OpenClawTransportRequest): Promise<OpenClawTransportResult>;
+}
+
+interface GatewayCliEnvelope {
+  ok?: boolean;
+  payload?: Record<string, unknown>;
+  error?: unknown;
+}
 
 function sanitizeSessionToken(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "family";
@@ -98,7 +119,16 @@ function coerceTextValue(value: unknown): string | null {
   if (value && typeof value === "object") {
     const record = value as Record<string, unknown>;
 
+    if (record.type === "text") {
+      const textContent = coerceTextValue(record.text);
+      if (textContent) {
+        return textContent;
+      }
+    }
+
     for (const key of [
+      "payload",
+      "data",
       "text",
       "output",
       "response",
@@ -139,6 +169,56 @@ function extractCommandOutput(stdout: string): string {
   }
 }
 
+function parseGatewayEnvelope(stdout: string): GatewayCliEnvelope {
+  const trimmed = stdout.trim();
+  if (!trimmed) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(trimmed) as GatewayCliEnvelope;
+  } catch {
+    return {};
+  }
+}
+
+function extractGatewayError(stdout: string): string | null {
+  const envelope = parseGatewayEnvelope(stdout);
+
+  if (envelope.ok === false) {
+    return (
+      coerceTextValue(envelope.error) ??
+      coerceTextValue(envelope.payload) ??
+      "Gateway call reported an error."
+    );
+  }
+
+  return null;
+}
+
+function extractGatewaySessionKey(stdout: string): string | null {
+  const envelope = parseGatewayEnvelope(stdout);
+  const payload = envelope.payload;
+
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const key = payload.key;
+  return typeof key === "string" && key.trim() ? key.trim() : null;
+}
+
+async function executeOpenClawCommand(args: string[]): Promise<string> {
+  const command = process.env.OPENCLAW_BIN?.trim() || "openclaw";
+  const { stdout } = await execFileAsync(command, args, {
+    timeout: OPENCLAW_TIMEOUT_MS,
+    maxBuffer: 1024 * 1024,
+    env: process.env,
+  });
+
+  return stdout;
+}
+
 function normalizeStructuredResponse(rawOutput: string): OpenClawHandoffResponse {
   const trimmed = rawOutput.trim();
 
@@ -170,6 +250,198 @@ function normalizeStructuredResponse(rawOutput: string): OpenClawHandoffResponse
   return { kind: "reply", text: trimmed };
 }
 
+function resolveOpenClawTransportMode(): OpenClawTransportMode {
+  const rawMode = process.env.OPENCLAW_TRANSPORT_MODE?.trim().toLowerCase();
+
+  if (!rawMode || rawMode === "local-cli") {
+    return "local-cli";
+  }
+
+  if (rawMode === "disabled") {
+    return "disabled";
+  }
+
+  if (rawMode === "remote-gateway" || rawMode === "remote-http") {
+    return "remote-gateway";
+  }
+
+  console.warn("Unknown OpenClaw transport mode; treating transport as disabled", {
+    configuredMode: rawMode,
+  });
+  return "disabled";
+}
+
+function buildOpenClawTransport(): OpenClawTransport {
+  const mode = resolveOpenClawTransportMode();
+
+  if (mode === "disabled") {
+    return {
+      mode,
+      async invoke() {
+        return {
+          status: "unavailable",
+          reason: "OpenClaw transport is disabled by configuration.",
+        };
+      },
+    };
+  }
+
+  if (mode === "remote-gateway") {
+    return {
+      mode,
+      async invoke(request) {
+        const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL?.trim();
+        const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN?.trim();
+
+        if (!gatewayUrl) {
+          return {
+            status: "unavailable",
+            reason: "OpenClaw remote gateway transport requires OPENCLAW_GATEWAY_URL.",
+          };
+        }
+
+        if (!gatewayToken) {
+          return {
+            status: "unavailable",
+            reason: "OpenClaw remote gateway transport requires OPENCLAW_GATEWAY_TOKEN.",
+          };
+        }
+
+        const baseArgs = [
+          "gateway",
+          "call",
+          "--url",
+          gatewayUrl,
+          "--token",
+          gatewayToken,
+          "--timeout",
+          String(OPENCLAW_TIMEOUT_MS),
+          "--json",
+        ];
+
+        try {
+          const resolveStdout = await executeOpenClawCommand([
+            ...baseArgs,
+            "sessions.resolve",
+            "--params",
+            JSON.stringify({
+              label: request.sessionLabel,
+              includeUnknown: true,
+            }),
+          ]);
+          const resolveError = extractGatewayError(resolveStdout);
+
+          if (resolveError) {
+            return {
+              status: "unavailable",
+              reason: `OpenClaw remote gateway session lookup failed: ${resolveError}`,
+            };
+          }
+
+          let sessionKey = extractGatewaySessionKey(resolveStdout);
+
+          if (!sessionKey) {
+            const createStdout = await executeOpenClawCommand([
+              ...baseArgs,
+              "sessions.create",
+              "--params",
+              JSON.stringify({
+                label: request.sessionLabel,
+              }),
+            ]);
+            const createError = extractGatewayError(createStdout);
+
+            if (createError) {
+              return {
+                status: "unavailable",
+                reason: `OpenClaw remote gateway session creation failed: ${createError}`,
+              };
+            }
+
+            sessionKey = extractGatewaySessionKey(createStdout);
+          }
+
+          if (!sessionKey) {
+            return {
+              status: "unavailable",
+              reason: "OpenClaw remote gateway did not return a session key.",
+            };
+          }
+
+          const sendStdout = await executeOpenClawCommand([
+            ...baseArgs,
+            "--expect-final",
+            "sessions.send",
+            "--params",
+            JSON.stringify({
+              key: sessionKey,
+              message: request.prompt,
+            }),
+          ]);
+          const sendError = extractGatewayError(sendStdout);
+
+          if (sendError) {
+            return {
+              status: "unavailable",
+              reason: `OpenClaw remote gateway send failed: ${sendError}`,
+            };
+          }
+
+          return {
+            status: "ok",
+            output: extractCommandOutput(sendStdout),
+          };
+        } catch (error) {
+          const details =
+            error instanceof Error
+              ? error.message
+              : typeof error === "string"
+                ? error
+                : "Unknown remote gateway transport error";
+
+          return {
+            status: "unavailable",
+            reason: `OpenClaw remote gateway transport failed: ${details}`,
+          };
+        }
+      },
+    };
+  }
+
+  return {
+    mode,
+    async invoke(request) {
+      try {
+        const stdout = await executeOpenClawCommand([
+          "agent",
+          "--session-id",
+          request.sessionLabel,
+          "--message",
+          request.prompt,
+          "--json",
+        ]);
+
+        return {
+          status: "ok",
+          output: extractCommandOutput(stdout),
+        };
+      } catch (error) {
+        const details =
+          error instanceof Error
+            ? error.message
+            : typeof error === "string"
+              ? error
+              : "Unknown local CLI transport error";
+
+        return {
+          status: "unavailable",
+          reason: `OpenClaw local CLI transport failed: ${details}`,
+        };
+      }
+    },
+  };
+}
+
 export async function runOpenClawFastHandoff(params: {
   familyId: string;
   event: TelegramMessageEvent;
@@ -177,23 +449,20 @@ export async function runOpenClawFastHandoff(params: {
 }): Promise<OpenClawHandoffResponse> {
   const prompt = buildPrompt(params.event, params.context);
   const sessionLabel = buildFamilySessionLabel(params.familyId);
+  const transport = buildOpenClawTransport();
+  const result = await transport.invoke({
+    sessionLabel,
+    prompt,
+  });
 
-  const { stdout } = await execFileAsync(
-    OPENCLAW_COMMAND,
-    [
-      "agent",
-      "--session-id",
-      sessionLabel,
-      "--message",
-      prompt,
-      "--json",
-    ],
-    {
-      timeout: OPENCLAW_TIMEOUT_MS,
-      maxBuffer: 1024 * 1024,
-      env: process.env,
-    },
-  );
+  if (result.status === "unavailable") {
+    console.warn("OpenClaw fast handoff transport unavailable", {
+      familyId: params.familyId,
+      transportMode: transport.mode,
+      reason: result.reason,
+    });
+    return { kind: "no_reply" };
+  }
 
-  return normalizeStructuredResponse(extractCommandOutput(stdout));
+  return normalizeStructuredResponse(result.output);
 }
