@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { classifyTelegramEvent } from "@/lib/telegram/classify";
+import { ingestTelegramEvent } from "@/lib/telegram/ingest";
 import { normalizeTelegramUpdate } from "@/lib/telegram/normalize";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -67,6 +68,25 @@ export async function POST(req: NextRequest) {
       reason: classification.reason,
       signals: classification.signals,
     });
+
+    const ingestionResult = await ingestTelegramEvent(event, classification);
+
+    if (ingestionResult.status === "duplicate") {
+      console.log("Ignoring duplicate telegram event", {
+        updateId: event.updateId,
+        dedupeKey: ingestionResult.dedupeKey,
+        eventId: ingestionResult.eventId,
+      });
+    }
+
+    if (ingestionResult.status === "ingested") {
+      console.log("Persisted telegram event", {
+        updateId: event.updateId,
+        dedupeKey: ingestionResult.dedupeKey,
+        eventId: ingestionResult.eventId,
+        category: ingestionResult.category,
+      });
+    }
 
     if (
       event.kind === "message" &&

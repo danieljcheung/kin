@@ -64,6 +64,16 @@ export type TelegramRouteDecision =
   | "handoff_background"
   | "onboarding_event";
 
+export type TelegramIngestionCategory =
+  | "PLAN"
+  | "EVENT"
+  | "TASK"
+  | "PREFERENCE"
+  | "DECISION"
+  | "QUESTION"
+  | "ONBOARDING"
+  | "UNKNOWN";
+
 export type TelegramClassifierReason =
   | "unsupported_update"
   | "empty_message"

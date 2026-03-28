@@ -33,6 +33,17 @@ enum MessagingPlatform {
   TELEGRAM
 }
 
+enum KinEventCategory {
+  PLAN
+  EVENT
+  TASK
+  PREFERENCE
+  DECISION
+  QUESTION
+  ONBOARDING
+  UNKNOWN
+}
+
 enum GroupBindingStatus {
   DM_STARTED
   BOT_ADDED
@@ -110,4 +121,39 @@ model GroupBinding {
 
   @@index([familyId, status])
   @@index([telegramDmUserId, status])
+}
+
+model KinEvent {
+  id            String           @id @default(cuid())
+  platform      MessagingPlatform
+  category      KinEventCategory
+  dedupeKey     String           @unique
+  updateId      String?
+  kind          String
+  scope         String?
+  routeDecision String
+  routeReason   String
+  chatId        String?
+  chatType      String?
+  chatTitle     String?
+  fromUserId    String?
+  fromUsername  String?
+  fromFirstName String?
+  messageId     String?
+  text          String?
+  command       String?
+  oldStatus     String?
+  newStatus     String?
+  familyId       String?
+  groupBindingId String?
+  raw            Json
+  createdAt      DateTime         @default(now())
+
+  @@index([familyId, createdAt])
+  @@index([familyId, category, createdAt])
+  @@index([groupBindingId, createdAt])
+  @@index([platform, createdAt])
+  @@index([platform, category, createdAt])
+  @@index([platform, chatId, createdAt])
+  @@index([updateId])
 }
