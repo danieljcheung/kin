@@ -7,7 +7,8 @@ import type { KinConversationContext, KinContextEvent } from "@/lib/kin/context"
 const execFileAsync = promisify(execFile);
 const OPENCLAW_TIMEOUT_MS = 30_000;
 const OPENCLAW_AGENT_WAIT_TIMEOUT_MS = 45_000;
-const OPENCLAW_AGENT_WAIT_COMMAND_TIMEOUT_MS = 50_000;
+const OPENCLAW_AGENT_WAIT_GATEWAY_TIMEOUT_MS = 50_000;
+const OPENCLAW_AGENT_WAIT_COMMAND_TIMEOUT_MS = 55_000;
 const OPENCLAW_SESSION_KEY_CACHE_TTL_MS = 10 * 60 * 1_000;
 
 export type OpenClawTransportMode = "local-cli" | "disabled" | "remote-gateway";
@@ -539,7 +540,7 @@ function buildOpenClawTransport(): OpenClawTransport {
           };
         }
 
-        const baseArgs = [
+        const buildGatewayCallArgs = (timeoutMs: number) => [
           "gateway",
           "call",
           "--url",
@@ -547,9 +548,11 @@ function buildOpenClawTransport(): OpenClawTransport {
           "--token",
           gatewayToken,
           "--timeout",
-          String(OPENCLAW_TIMEOUT_MS),
+          String(timeoutMs),
           "--json",
         ];
+
+        const baseArgs = buildGatewayCallArgs(OPENCLAW_TIMEOUT_MS);
 
         try {
           let sessionKey = getCachedSessionKey(request.sessionLabel);
@@ -734,10 +737,11 @@ function buildOpenClawTransport(): OpenClawTransport {
             };
           }
 
+          const waitArgs = buildGatewayCallArgs(OPENCLAW_AGENT_WAIT_GATEWAY_TIMEOUT_MS);
           const waitStdout = await timeStage(timingsMs, "wait", () =>
             executeOpenClawCommand(
               [
-                ...baseArgs,
+                ...waitArgs,
                 "agent.wait",
                 "--params",
                 JSON.stringify({
