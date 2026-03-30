@@ -6,7 +6,7 @@ import type { KinConversationContext, KinContextEvent } from "@/lib/kin/context"
 
 const execFileAsync = promisify(execFile);
 const OPENCLAW_TIMEOUT_MS = 30_000;
-const OPENCLAW_HISTORY_POLL_ATTEMPTS = 6;
+const OPENCLAW_HISTORY_POLL_ATTEMPTS = 10;
 const OPENCLAW_HISTORY_POLL_INTERVAL_MS = 500;
 
 export type OpenClawTransportMode = "local-cli" | "disabled" | "remote-gateway";
