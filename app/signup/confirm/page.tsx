@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   autoSignIn,
@@ -21,7 +21,7 @@ configureAmplify();
 const CODE_LENGTH = 6;
 const SESSION_RECOVERY_REDIRECT = "SIGNIN_REQUIRED";
 
-export default function ConfirmSignupPage() {
+function ConfirmSignupPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [storedEmail, setStoredEmail] = useState("");
@@ -308,5 +308,13 @@ export default function ConfirmSignupPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function ConfirmSignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-6 py-12 text-stone-900" />}>
+      <ConfirmSignupPageContent />
+    </Suspense>
   );
 }

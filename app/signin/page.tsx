@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { fetchAuthSession, signIn } from "aws-amplify/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { configureAmplify } from "@/lib/amplify";
@@ -24,7 +24,7 @@ function getSigninErrorMessage(err: unknown) {
   return err.message;
 }
 
-export default function SigninPage() {
+function SigninPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [storedEmail, setStoredEmail] = useState("");
@@ -205,5 +205,13 @@ export default function SigninPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function SigninPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-6 py-12 text-stone-900" />}>
+      <SigninPageContent />
+    </Suspense>
   );
 }

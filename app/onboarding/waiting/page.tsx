@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { Suspense, startTransition, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { startTransition, useEffect, useEffectEvent, useRef, useState } from "react";
 
 type BindingStatusResponse = {
   data: {
@@ -56,7 +56,7 @@ const INITIAL_WAITING_STATE: WaitingState = {
   groupName: null,
 };
 
-export default function TelegramWaitingPage() {
+function TelegramWaitingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectedRef = useRef(false);
@@ -265,5 +265,13 @@ export default function TelegramWaitingPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function TelegramWaitingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-6 py-12 text-stone-900" />}>
+      <TelegramWaitingPageContent />
+    </Suspense>
   );
 }

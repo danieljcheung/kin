@@ -1,9 +1,9 @@
 "use client";
 
+import { Suspense, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
 
 async function copyText(value: string) {
   if (
@@ -28,7 +28,7 @@ function getQrCodeUrl(value: string) {
   return `https://api.qrserver.com/v1/create-qr-code/?${params.toString()}`;
 }
 
-export default function ConnectTelegramPage() {
+function ConnectTelegramPageContent() {
   const searchParams = useSearchParams();
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
 
@@ -232,5 +232,13 @@ export default function ConnectTelegramPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function ConnectTelegramPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-6 py-12 text-stone-900" />}>
+      <ConnectTelegramPageContent />
+    </Suspense>
   );
 }
