@@ -1,12 +1,21 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-export default function TelegramCompletePage() {
+function BindingIdValue() {
   const searchParams = useSearchParams();
   const bindingId = searchParams.get("bindingId");
 
+  return (
+    <p className="mt-2 break-all text-sm leading-6 text-stone-700">
+      {bindingId ?? "Unavailable"}
+    </p>
+  );
+}
+
+export default function TelegramCompletePage() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-6 py-12 text-stone-900">
       <div className="mx-auto max-w-2xl">
@@ -34,9 +43,15 @@ export default function TelegramCompletePage() {
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
                 Binding ID
               </p>
-              <p className="mt-2 break-all text-sm leading-6 text-stone-700">
-                {bindingId ?? "Unavailable"}
-              </p>
+              <Suspense
+                fallback={
+                  <p className="mt-2 break-all text-sm leading-6 text-stone-700">
+                    Unavailable
+                  </p>
+                }
+              >
+                <BindingIdValue />
+              </Suspense>
             </div>
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
