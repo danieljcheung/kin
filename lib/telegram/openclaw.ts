@@ -32,6 +32,7 @@ interface GatewayCliEnvelope {
   ok?: boolean;
   key?: string;
   payload?: Record<string, unknown>;
+  messages?: unknown;
   error?: unknown;
 }
 
@@ -149,6 +150,10 @@ function coerceTextValue(value: unknown): string | null {
   return null;
 }
 
+function stripFinalWrapper(value: string): string {
+  return value.replace(/^<final>\s*/i, "").replace(/\s*<\/final>$/i, "").trim();
+}
+
 function extractCommandOutput(stdout: string): string {
   const trimmed = stdout.trim();
   if (!trimmed) {
@@ -168,6 +173,39 @@ function extractCommandOutput(stdout: string): string {
   } catch {
     return trimmed;
   }
+}
+
+function extractLatestAssistantTextFromHistory(stdout: string): string | null {
+  const envelope = parseGatewayEnvelope(stdout);
+  const messages = Array.isArray(envelope.messages)
+    ? envelope.messages
+    : Array.isArray(envelope.payload?.messages)
+      ? envelope.payload.messages
+      : null;
+
+  if (!messages) {
+    return null;
+  }
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+
+    if (!message || typeof message !== "object") {
+      continue;
+    }
+
+    const record = message as Record<string, unknown>;
+    if (record.role !== "assistant") {
+      continue;
+    }
+
+    const text = stripFinalWrapper(coerceTextValue(record.content) ?? coerceTextValue(record.text) ?? "");
+    if (text) {
+      return text;
+    }
+  }
+
+  return null;
 }
 
 function parseGatewayEnvelope(stdout: string): GatewayCliEnvelope {
@@ -484,9 +522,29 @@ function buildOpenClawTransport(): OpenClawTransport {
             };
           }
 
+          const historyStdout = await executeOpenClawCommand([
+            ...baseArgs,
+            "chat.history",
+            "--params",
+            JSON.stringify({
+              sessionKey,
+              limit: 10,
+            }),
+          ]);
+          const historyError = extractGatewayError(historyStdout);
+
+          if (historyError) {
+            return {
+              status: "unavailable",
+              reason: `OpenClaw remote gateway history fetch failed: ${historyError}`,
+            };
+          }
+
           return {
             status: "ok",
-            output: extractCommandOutput(sendStdout),
+            output:
+              extractLatestAssistantTextFromHistory(historyStdout) ??
+              extractCommandOutput(sendStdout),
           };
         } catch (error) {
           const details =
