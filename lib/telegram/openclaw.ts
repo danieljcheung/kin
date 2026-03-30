@@ -6,8 +6,6 @@ import type { KinConversationContext, KinContextEvent } from "@/lib/kin/context"
 
 const execFileAsync = promisify(execFile);
 const OPENCLAW_TIMEOUT_MS = 30_000;
-const OPENCLAW_HISTORY_POLL_ATTEMPTS = 6;
-const OPENCLAW_HISTORY_POLL_INTERVAL_MS = 500;
 
 export type OpenClawTransportMode = "local-cli" | "disabled" | "remote-gateway";
 
@@ -191,27 +189,12 @@ function extractHistoryMessages(stdout: string): Record<string, unknown>[] {
   );
 }
 
-function extractMessageSeq(message: Record<string, unknown>): number | null {
-  const openclaw = message.__openclaw;
-  if (!openclaw || typeof openclaw !== "object") {
-    return null;
-  }
-
-  const seq = (openclaw as Record<string, unknown>).seq;
-  return typeof seq === "number" && Number.isFinite(seq) ? seq : null;
-}
-
-function extractNewestAssistantTextAfterSeq(stdout: string, minimumSeq: number): string | null {
+function extractLatestAssistantTextFromHistory(stdout: string): string | null {
   const messages = extractHistoryMessages(stdout);
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const record = messages[index];
     if (record.role !== "assistant") {
-      continue;
-    }
-
-    const seq = extractMessageSeq(record);
-    if (seq !== null && seq <= minimumSeq) {
       continue;
     }
 
@@ -222,20 +205,6 @@ function extractNewestAssistantTextAfterSeq(stdout: string, minimumSeq: number):
   }
 
   return null;
-}
-
-function extractLatestHistorySeq(stdout: string): number {
-  const messages = extractHistoryMessages(stdout);
-  let latestSeq = 0;
-
-  for (const message of messages) {
-    const seq = extractMessageSeq(message);
-    if (seq !== null && seq > latestSeq) {
-      latestSeq = seq;
-    }
-  }
-
-  return latestSeq;
 }
 
 function parseGatewayEnvelope(stdout: string): GatewayCliEnvelope {
@@ -322,10 +291,6 @@ async function executeOpenClawCommand(args: string[]): Promise<string> {
   });
 
   return stdout;
-}
-
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function normalizeStructuredResponse(rawOutput: string): OpenClawHandoffResponse {
@@ -537,25 +502,6 @@ function buildOpenClawTransport(): OpenClawTransport {
             };
           }
 
-          const baselineHistoryStdout = await executeOpenClawCommand([
-            ...baseArgs,
-            "chat.history",
-            "--params",
-            JSON.stringify({
-              sessionKey,
-              limit: 10,
-            }),
-          ]);
-          const baselineHistoryError = extractGatewayError(baselineHistoryStdout);
-
-          if (baselineHistoryError) {
-            return {
-              status: "unavailable",
-              reason: `OpenClaw remote gateway baseline history fetch failed: ${baselineHistoryError}`,
-            };
-          }
-
-          const baselineSeq = extractLatestHistorySeq(baselineHistoryStdout);
           const sendStdout = await executeOpenClawCommand([
             ...baseArgs,
             "--expect-final",
@@ -575,40 +521,35 @@ function buildOpenClawTransport(): OpenClawTransport {
             };
           }
 
-          let resolvedOutput: string | null = null;
+          const historyStdout = await executeOpenClawCommand([
+            ...baseArgs,
+            "chat.history",
+            "--params",
+            JSON.stringify({
+              sessionKey,
+              limit: 10,
+            }),
+          ]);
+          const historyError = extractGatewayError(historyStdout);
 
-          for (let attempt = 0; attempt < OPENCLAW_HISTORY_POLL_ATTEMPTS; attempt += 1) {
-            if (attempt > 0) {
-              await sleep(OPENCLAW_HISTORY_POLL_INTERVAL_MS);
-            }
+          if (historyError) {
+            return {
+              status: "unavailable",
+              reason: `OpenClaw remote gateway history fetch failed: ${historyError}`,
+            };
+          }
 
-            const historyStdout = await executeOpenClawCommand([
-              ...baseArgs,
-              "chat.history",
-              "--params",
-              JSON.stringify({
-                sessionKey,
-                limit: 10,
-              }),
-            ]);
-            const historyError = extractGatewayError(historyStdout);
-
-            if (historyError) {
-              return {
-                status: "unavailable",
-                reason: `OpenClaw remote gateway history fetch failed: ${historyError}`,
-              };
-            }
-
-            resolvedOutput = extractNewestAssistantTextAfterSeq(historyStdout, baselineSeq);
-            if (resolvedOutput) {
-              break;
-            }
+          const latestAssistantText = extractLatestAssistantTextFromHistory(historyStdout);
+          if (!latestAssistantText) {
+            return {
+              status: "unavailable",
+              reason: "OpenClaw remote gateway history did not contain an assistant reply.",
+            };
           }
 
           return {
             status: "ok",
-            output: resolvedOutput ?? extractCommandOutput(sendStdout),
+            output: latestAssistantText,
           };
         } catch (error) {
           const details =
