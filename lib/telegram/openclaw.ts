@@ -208,6 +208,15 @@ function extractGatewaySessionKey(stdout: string): string | null {
   return typeof key === "string" && key.trim() ? key.trim() : null;
 }
 
+function isMissingSessionLookupError(message: string | null): boolean {
+  if (!message) {
+    return false;
+  }
+
+  const normalized = message.toLowerCase();
+  return normalized.includes("no session found with label");
+}
+
 async function executeOpenClawCommand(args: string[]): Promise<string> {
   const command = process.env.OPENCLAW_BIN?.trim() || "openclaw";
   const { stdout } = await execFileAsync(command, args, {
@@ -330,15 +339,16 @@ function buildOpenClawTransport(): OpenClawTransport {
             }),
           ]);
           const resolveError = extractGatewayError(resolveStdout);
+          const isMissingSession = isMissingSessionLookupError(resolveError);
 
-          if (resolveError) {
+          if (resolveError && !isMissingSession) {
             return {
               status: "unavailable",
               reason: `OpenClaw remote gateway session lookup failed: ${resolveError}`,
             };
           }
 
-          let sessionKey = extractGatewaySessionKey(resolveStdout);
+          let sessionKey = isMissingSession ? null : extractGatewaySessionKey(resolveStdout);
 
           if (!sessionKey) {
             const createStdout = await executeOpenClawCommand([
