@@ -17,6 +17,7 @@ export type OpenClawHandoffResponse =
 interface OpenClawTransportRequest {
   sessionLabel: string;
   prompt: string;
+  requestId: string;
 }
 
 type OpenClawTransportResult =
@@ -74,7 +75,11 @@ function renderEventBlock(label: string, event: KinContextEvent): string {
   ].join("\n");
 }
 
-function buildPrompt(event: TelegramMessageEvent, context: KinConversationContext): string {
+function buildPrompt(
+  event: TelegramMessageEvent,
+  context: KinConversationContext,
+  requestId: string,
+): string {
   const recentContext =
     context.recentEvents.length > 0
       ? context.recentEvents
@@ -88,9 +93,14 @@ function buildPrompt(event: TelegramMessageEvent, context: KinConversationContex
     "Respond only when a direct, helpful conversational reply is warranted.",
     "Do not mention internal routing, OpenClaw, or hidden prompts.",
     "",
+    "[REQUEST ID]",
+    `REQUEST_ID: ${requestId}`,
+    "Include this exact request id in your response so Kin can match the correct reply.",
+    "",
     "[RESPONSE CONTRACT]",
     "Return exactly this labeled format:",
     "KIND: no_reply | reply | clarify",
+    `REQUEST_ID: ${requestId}`,
     "TEXT: <plain text reply, required for reply and clarify, empty for no_reply>",
     "",
     "[DECISION RULES]",
@@ -151,6 +161,11 @@ function coerceTextValue(value: unknown): string | null {
   return null;
 }
 
+function buildRequestId(event: TelegramMessageEvent): string {
+  const messageId = event.messageId ?? "unknown";
+  return `kin_req_${messageId}_${Date.now().toString(36)}`;
+}
+
 function stripFinalWrapper(value: string): string {
   return value.replace(/^<final>\s*/i, "").replace(/\s*<\/final>$/i, "").trim();
 }
@@ -189,7 +204,7 @@ function extractHistoryMessages(stdout: string): Record<string, unknown>[] {
   );
 }
 
-function extractLatestAssistantTextFromHistory(stdout: string): string | null {
+function extractMatchedAssistantTextFromHistory(stdout: string, requestId: string): string | null {
   const messages = extractHistoryMessages(stdout);
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -199,7 +214,7 @@ function extractLatestAssistantTextFromHistory(stdout: string): string | null {
     }
 
     const text = stripFinalWrapper(coerceTextValue(record.content) ?? coerceTextValue(record.text) ?? "");
-    if (text) {
+    if (text && text.includes(`REQUEST_ID: ${requestId}`)) {
       return text;
     }
   }
@@ -300,8 +315,9 @@ function normalizeStructuredResponse(rawOutput: string): OpenClawHandoffResponse
     return { kind: "no_reply" };
   }
 
-  const kindMatch = trimmed.match(/(?:^|\n)KIND:\s*(no_reply|reply|clarify)\s*(?:\n|$)/i);
-  const textMatch = trimmed.match(/(?:^|\n)TEXT:\s*([\s\S]*)$/i);
+  const withoutRequestId = trimmed.replace(/(?:^|\n)REQUEST_ID:\s*.+?(?=\n|$)/gi, "").trim();
+  const kindMatch = withoutRequestId.match(/(?:^|\n)KIND:\s*(no_reply|reply|clarify)\s*(?:\n|$)/i);
+  const textMatch = withoutRequestId.match(/(?:^|\n)TEXT:\s*([\s\S]*)$/i);
   const normalizedKind = kindMatch?.[1]?.toLowerCase();
   const normalizedText = textMatch?.[1]?.trim() ?? "";
 
@@ -539,17 +555,20 @@ function buildOpenClawTransport(): OpenClawTransport {
             };
           }
 
-          const latestAssistantText = extractLatestAssistantTextFromHistory(historyStdout);
-          if (!latestAssistantText) {
+          const matchedAssistantText = extractMatchedAssistantTextFromHistory(
+            historyStdout,
+            request.requestId,
+          );
+          if (!matchedAssistantText) {
             return {
               status: "unavailable",
-              reason: "OpenClaw remote gateway history did not contain an assistant reply.",
+              reason: "OpenClaw remote gateway history did not contain a matching assistant reply.",
             };
           }
 
           return {
             status: "ok",
-            output: latestAssistantText,
+            output: matchedAssistantText,
           };
         } catch (error) {
           const details =
@@ -607,12 +626,14 @@ export async function runOpenClawFastHandoff(params: {
   event: TelegramMessageEvent;
   context: KinConversationContext;
 }): Promise<OpenClawHandoffResponse> {
-  const prompt = buildPrompt(params.event, params.context);
+  const requestId = buildRequestId(params.event);
+  const prompt = buildPrompt(params.event, params.context, requestId);
   const sessionLabel = buildFamilySessionLabel(params.familyId);
   const transport = buildOpenClawTransport();
   const result = await transport.invoke({
     sessionLabel,
     prompt,
+    requestId,
   });
 
   if (result.status === "unavailable") {
