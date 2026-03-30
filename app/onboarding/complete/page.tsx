@@ -28,15 +28,13 @@ export default function TelegramCompletePage() {
               Kin is connected to Telegram
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-stone-600">
-              Your Telegram account and family group are linked. Kin can now finish
-              onboarding from here.
+              Your Telegram account and family group are linked. Head into the dashboard to confirm Kin is healthy and start with your first reminder.
             </p>
           </div>
 
           <div className="mt-8 rounded-3xl border border-stone-200 bg-stone-50 p-6">
             <p className="text-sm leading-6 text-stone-600">
-              You can close this page or continue back into the app. If you need to
-              reference this setup later, the binding id is shown below.
+              Your setup is complete. If you need to reference this connection later, the binding id is shown below.
             </p>
 
             <div className="mt-5 rounded-2xl border border-stone-200 bg-white px-4 py-3">
@@ -56,16 +54,16 @@ export default function TelegramCompletePage() {
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/"
+                href="/dashboard"
                 className="inline-flex items-center justify-center rounded-full bg-stone-900 px-6 py-3.5 text-sm font-medium text-white transition hover:bg-stone-800"
               >
-                Return home
+                Open dashboard
               </Link>
               <Link
-                href="/onboarding/connect-telegram"
+                href="/settings"
                 className="inline-flex items-center justify-center rounded-full border border-stone-300 px-6 py-3.5 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900"
               >
-                View Telegram setup
+                View settings
               </Link>
             </div>
           </div>
