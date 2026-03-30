@@ -30,6 +30,7 @@ interface OpenClawTransport {
 
 interface GatewayCliEnvelope {
   ok?: boolean;
+  key?: string;
   payload?: Record<string, unknown>;
   error?: unknown;
 }
