@@ -159,6 +159,9 @@ export async function POST(req: NextRequest) {
           eventId: persistedEvent.id,
           familyId: persistedEvent.familyId,
           kind: handoffResponse.kind,
+          ...(handoffResponse.kind === "unavailable"
+            ? { reason: handoffResponse.reason }
+            : {}),
         });
 
         if (handoffResponse.kind === "reply" || handoffResponse.kind === "clarify") {

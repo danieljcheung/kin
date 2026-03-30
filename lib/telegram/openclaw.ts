@@ -6,15 +6,17 @@ import type { KinConversationContext, KinContextEvent } from "@/lib/kin/context"
 
 const execFileAsync = promisify(execFile);
 const OPENCLAW_TIMEOUT_MS = 30_000;
-const OPENCLAW_HISTORY_POLL_ATTEMPTS = 10;
-const OPENCLAW_HISTORY_POLL_INTERVAL_MS = 500;
+const OPENCLAW_HISTORY_POLL_INTERVALS_MS = [150, 250, 500, 750, 1_000, 1_500, 2_000];
+const OPENCLAW_SESSION_KEY_CACHE_TTL_MS = 10 * 60 * 1_000;
 
 export type OpenClawTransportMode = "local-cli" | "disabled" | "remote-gateway";
 
 export type OpenClawHandoffResponse =
   | { kind: "no_reply" }
   | { kind: "reply"; text: string }
-  | { kind: "clarify"; text: string };
+  | { kind: "clarify"; text: string }
+  | { kind: "timeout" }
+  | { kind: "unavailable"; reason: string };
 
 interface OpenClawTransportRequest {
   sessionLabel: string;
@@ -23,8 +25,17 @@ interface OpenClawTransportRequest {
 }
 
 type OpenClawTransportResult =
-  | { status: "ok"; output: string }
-  | { status: "unavailable"; reason: string };
+  | { status: "ok"; output: string; timingsMs?: Partial<Record<OpenClawStageName, number>> }
+  | {
+      status: "timeout";
+      reason: string;
+      timingsMs?: Partial<Record<OpenClawStageName, number>>;
+    }
+  | {
+      status: "unavailable";
+      reason: string;
+      timingsMs?: Partial<Record<OpenClawStageName, number>>;
+    };
 
 interface OpenClawTransport {
   mode: OpenClawTransportMode;
@@ -39,6 +50,10 @@ interface GatewayCliEnvelope {
   messages?: unknown;
   error?: unknown;
 }
+
+type OpenClawStageName = "resolve" | "create" | "send" | "poll" | "match" | "total";
+
+const openClawSessionKeyCache = new Map<string, { sessionKey: string; expiresAt: number }>();
 
 function sanitizeSessionToken(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "family";
@@ -367,6 +382,75 @@ function resolveOpenClawTransportMode(): OpenClawTransportMode {
   return "disabled";
 }
 
+function getCachedSessionKey(sessionLabel: string): string | null {
+  const cached = openClawSessionKeyCache.get(sessionLabel);
+
+  if (!cached) {
+    return null;
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    openClawSessionKeyCache.delete(sessionLabel);
+    return null;
+  }
+
+  return cached.sessionKey;
+}
+
+function setCachedSessionKey(sessionLabel: string, sessionKey: string): void {
+  openClawSessionKeyCache.set(sessionLabel, {
+    sessionKey,
+    expiresAt: Date.now() + OPENCLAW_SESSION_KEY_CACHE_TTL_MS,
+  });
+}
+
+function clearCachedSessionKey(sessionLabel: string): void {
+  openClawSessionKeyCache.delete(sessionLabel);
+}
+
+async function timeStage<T>(
+  timingsMs: Partial<Record<OpenClawStageName, number>>,
+  stage: OpenClawStageName,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const startedAt = Date.now();
+  try {
+    return await fn();
+  } finally {
+    timingsMs[stage] = (timingsMs[stage] ?? 0) + (Date.now() - startedAt);
+  }
+}
+
+function logTransportOutcome(params: {
+  mode: OpenClawTransportMode;
+  sessionLabel: string;
+  requestId: string;
+  outcome: "ok" | "timeout" | "unavailable";
+  timingsMs?: Partial<Record<OpenClawStageName, number>>;
+  detail?: string;
+}): void {
+  const payload = {
+    mode: params.mode,
+    sessionLabel: params.sessionLabel,
+    requestId: params.requestId,
+    outcome: params.outcome,
+    timingsMs: params.timingsMs ?? {},
+    detail: params.detail,
+  };
+
+  if (params.outcome === "ok") {
+    console.log("OpenClaw transport completed", payload);
+    return;
+  }
+
+  if (params.outcome === "timeout") {
+    console.warn("OpenClaw transport timed out", payload);
+    return;
+  }
+
+  console.warn("OpenClaw transport unavailable", payload);
+}
+
 function buildOpenClawTransport(): OpenClawTransport {
   const mode = resolveOpenClawTransportMode();
 
@@ -388,11 +472,14 @@ function buildOpenClawTransport(): OpenClawTransport {
       async invoke(request) {
         const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL?.trim();
         const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN?.trim();
+        const timingsMs: Partial<Record<OpenClawStageName, number>> = {};
+        const totalStartedAt = Date.now();
 
         if (!gatewayUrl) {
           return {
             status: "unavailable",
             reason: "OpenClaw remote gateway transport requires OPENCLAW_GATEWAY_URL.",
+            timingsMs,
           };
         }
 
@@ -400,6 +487,7 @@ function buildOpenClawTransport(): OpenClawTransport {
           return {
             status: "unavailable",
             reason: "OpenClaw remote gateway transport requires OPENCLAW_GATEWAY_TOKEN.",
+            timingsMs,
           };
         }
 
@@ -416,79 +504,15 @@ function buildOpenClawTransport(): OpenClawTransport {
         ];
 
         try {
-          let resolveStdout = "";
-          let missingSessionFromResolveError = false;
-
-          try {
-            resolveStdout = await executeOpenClawCommand([
-              ...baseArgs,
-              "sessions.resolve",
-              "--params",
-              JSON.stringify({
-                label: request.sessionLabel,
-                includeUnknown: true,
-              }),
-            ]);
-          } catch (error) {
-            const resolveCommandError = extractErrorMessage(error);
-
-            if (isMissingSessionLookupError(resolveCommandError)) {
-              missingSessionFromResolveError = true;
-            } else {
-              throw error;
-            }
-          }
-
-          const resolveError = extractGatewayError(resolveStdout);
-          const isMissingSession =
-            missingSessionFromResolveError || isMissingSessionLookupError(resolveError);
-
-          if (resolveError && !isMissingSession) {
-            return {
-              status: "unavailable",
-              reason: `OpenClaw remote gateway session lookup failed: ${resolveError}`,
-            };
-          }
-
-          let sessionKey = isMissingSession ? null : extractGatewaySessionKey(resolveStdout);
+          let sessionKey = getCachedSessionKey(request.sessionLabel);
 
           if (!sessionKey) {
-            let createStdout = "";
-            let labelAlreadyInUse = false;
+            let resolveStdout = "";
+            let missingSessionFromResolveError = false;
 
             try {
-              createStdout = await executeOpenClawCommand([
-                ...baseArgs,
-                "sessions.create",
-                "--params",
-                JSON.stringify({
-                  label: request.sessionLabel,
-                }),
-              ]);
-            } catch (error) {
-              const createCommandError = extractErrorMessage(error);
-
-              if (isLabelAlreadyInUseError(createCommandError)) {
-                labelAlreadyInUse = true;
-              } else {
-                throw error;
-              }
-            }
-
-            const createError = extractGatewayError(createStdout);
-
-            if (createError && !isLabelAlreadyInUseError(createError)) {
-              return {
-                status: "unavailable",
-                reason: `OpenClaw remote gateway session creation failed: ${createError}`,
-              };
-            }
-
-            sessionKey = extractGatewaySessionKey(createStdout);
-
-            if (!sessionKey && labelAlreadyInUse) {
-              try {
-                const retryResolveStdout = await executeOpenClawCommand([
+              resolveStdout = await timeStage(timingsMs, "resolve", () =>
+                executeOpenClawCommand([
                   ...baseArgs,
                   "sessions.resolve",
                   "--params",
@@ -496,82 +520,201 @@ function buildOpenClawTransport(): OpenClawTransport {
                     label: request.sessionLabel,
                     includeUnknown: true,
                   }),
-                ]);
-                const retryResolveError = extractGatewayError(retryResolveStdout);
+                ]),
+              );
+            } catch (error) {
+              const resolveCommandError = extractErrorMessage(error);
 
-                if (retryResolveError && !isMissingSessionLookupError(retryResolveError)) {
-                  return {
-                    status: "unavailable",
-                    reason: `OpenClaw remote gateway retry session lookup failed: ${retryResolveError}`,
-                  };
-                }
+              if (isMissingSessionLookupError(resolveCommandError)) {
+                missingSessionFromResolveError = true;
+              } else {
+                throw error;
+              }
+            }
 
-                sessionKey = extractGatewaySessionKey(retryResolveStdout);
+            const resolveError = extractGatewayError(resolveStdout);
+            const isMissingSession =
+              missingSessionFromResolveError || isMissingSessionLookupError(resolveError);
+
+            if (resolveError && !isMissingSession) {
+              return {
+                status: "unavailable",
+                reason: `OpenClaw remote gateway session lookup failed: ${resolveError}`,
+                timingsMs: {
+                  ...timingsMs,
+                  total: Date.now() - totalStartedAt,
+                },
+              };
+            }
+
+            sessionKey = isMissingSession ? null : extractGatewaySessionKey(resolveStdout);
+
+            if (!sessionKey) {
+              let createStdout = "";
+              let labelAlreadyInUse = false;
+
+              try {
+                createStdout = await timeStage(timingsMs, "create", () =>
+                  executeOpenClawCommand([
+                    ...baseArgs,
+                    "sessions.create",
+                    "--params",
+                    JSON.stringify({
+                      label: request.sessionLabel,
+                    }),
+                  ]),
+                );
               } catch (error) {
-                const retryResolveCommandError = extractErrorMessage(error);
+                const createCommandError = extractErrorMessage(error);
 
-                if (!isMissingSessionLookupError(retryResolveCommandError)) {
+                if (isLabelAlreadyInUseError(createCommandError)) {
+                  labelAlreadyInUse = true;
+                } else {
                   throw error;
                 }
               }
+
+              const createError = extractGatewayError(createStdout);
+
+              if (createError && !isLabelAlreadyInUseError(createError)) {
+                return {
+                  status: "unavailable",
+                  reason: `OpenClaw remote gateway session creation failed: ${createError}`,
+                  timingsMs: {
+                    ...timingsMs,
+                    total: Date.now() - totalStartedAt,
+                  },
+                };
+              }
+
+              sessionKey = extractGatewaySessionKey(createStdout);
+
+              if (!sessionKey && labelAlreadyInUse) {
+                try {
+                  const retryResolveStdout = await timeStage(timingsMs, "resolve", () =>
+                    executeOpenClawCommand([
+                      ...baseArgs,
+                      "sessions.resolve",
+                      "--params",
+                      JSON.stringify({
+                        label: request.sessionLabel,
+                        includeUnknown: true,
+                      }),
+                    ]),
+                  );
+                  const retryResolveError = extractGatewayError(retryResolveStdout);
+
+                  if (retryResolveError && !isMissingSessionLookupError(retryResolveError)) {
+                    return {
+                      status: "unavailable",
+                      reason: `OpenClaw remote gateway retry session lookup failed: ${retryResolveError}`,
+                      timingsMs: {
+                        ...timingsMs,
+                        total: Date.now() - totalStartedAt,
+                      },
+                    };
+                  }
+
+                  sessionKey = extractGatewaySessionKey(retryResolveStdout);
+                } catch (error) {
+                  const retryResolveCommandError = extractErrorMessage(error);
+
+                  if (!isMissingSessionLookupError(retryResolveCommandError)) {
+                    throw error;
+                  }
+                }
+              }
             }
+
+            if (!sessionKey) {
+              return {
+                status: "unavailable",
+                reason: "OpenClaw remote gateway did not return a session key.",
+                timingsMs: {
+                  ...timingsMs,
+                  total: Date.now() - totalStartedAt,
+                },
+              };
+            }
+
+            setCachedSessionKey(request.sessionLabel, sessionKey);
           }
 
-          if (!sessionKey) {
-            return {
-              status: "unavailable",
-              reason: "OpenClaw remote gateway did not return a session key.",
-            };
+          let sendStdout = "";
+
+          try {
+            sendStdout = await timeStage(timingsMs, "send", () =>
+              executeOpenClawCommand([
+                ...baseArgs,
+                "--expect-final",
+                "sessions.send",
+                "--params",
+                JSON.stringify({
+                  key: sessionKey,
+                  message: request.prompt,
+                }),
+              ]),
+            );
+          } catch (error) {
+            clearCachedSessionKey(request.sessionLabel);
+            throw error;
           }
 
-          const sendStdout = await executeOpenClawCommand([
-            ...baseArgs,
-            "--expect-final",
-            "sessions.send",
-            "--params",
-            JSON.stringify({
-              key: sessionKey,
-              message: request.prompt,
-            }),
-          ]);
           const sendError = extractGatewayError(sendStdout);
 
           if (sendError) {
+            clearCachedSessionKey(request.sessionLabel);
             return {
               status: "unavailable",
               reason: `OpenClaw remote gateway send failed: ${sendError}`,
+              timingsMs: {
+                ...timingsMs,
+                total: Date.now() - totalStartedAt,
+              },
             };
           }
 
           let matchedAssistantText: string | null = null;
 
-          for (let attempt = 0; attempt < OPENCLAW_HISTORY_POLL_ATTEMPTS; attempt += 1) {
-            if (attempt > 0) {
-              await sleep(OPENCLAW_HISTORY_POLL_INTERVAL_MS);
+          for (let attempt = 0; attempt < OPENCLAW_HISTORY_POLL_INTERVALS_MS.length; attempt += 1) {
+            const delayMs = OPENCLAW_HISTORY_POLL_INTERVALS_MS[attempt] ?? 0;
+
+            if (attempt > 0 && delayMs > 0) {
+              await sleep(delayMs);
             }
 
-            const historyStdout = await executeOpenClawCommand([
-              ...baseArgs,
-              "chat.history",
-              "--params",
-              JSON.stringify({
-                sessionKey,
-                limit: 10,
-              }),
-            ]);
+            const historyStdout = await timeStage(timingsMs, "poll", () =>
+              executeOpenClawCommand([
+                ...baseArgs,
+                "chat.history",
+                "--params",
+                JSON.stringify({
+                  sessionKey,
+                  limit: 10,
+                }),
+              ]),
+            );
             const historyError = extractGatewayError(historyStdout);
 
             if (historyError) {
+              clearCachedSessionKey(request.sessionLabel);
               return {
                 status: "unavailable",
                 reason: `OpenClaw remote gateway history fetch failed: ${historyError}`,
+                timingsMs: {
+                  ...timingsMs,
+                  total: Date.now() - totalStartedAt,
+                },
               };
             }
 
+            const matchStartedAt = Date.now();
             matchedAssistantText = extractMatchedAssistantTextFromHistory(
               historyStdout,
               request.requestId,
             );
+            timingsMs.match = (timingsMs.match ?? 0) + (Date.now() - matchStartedAt);
+
             if (matchedAssistantText) {
               break;
             }
@@ -579,14 +722,22 @@ function buildOpenClawTransport(): OpenClawTransport {
 
           if (!matchedAssistantText) {
             return {
-              status: "unavailable",
-              reason: "OpenClaw remote gateway history did not contain a matching assistant reply.",
+              status: "timeout",
+              reason: "OpenClaw remote gateway history did not contain a matching assistant reply before the polling window elapsed.",
+              timingsMs: {
+                ...timingsMs,
+                total: Date.now() - totalStartedAt,
+              },
             };
           }
 
           return {
             status: "ok",
             output: matchedAssistantText,
+            timingsMs: {
+              ...timingsMs,
+              total: Date.now() - totalStartedAt,
+            },
           };
         } catch (error) {
           const details =
@@ -599,6 +750,10 @@ function buildOpenClawTransport(): OpenClawTransport {
           return {
             status: "unavailable",
             reason: `OpenClaw remote gateway transport failed: ${details}`,
+            timingsMs: {
+              ...timingsMs,
+              total: Date.now() - totalStartedAt,
+            },
           };
         }
       },
@@ -655,13 +810,40 @@ export async function runOpenClawFastHandoff(params: {
   });
 
   if (result.status === "unavailable") {
-    console.warn("OpenClaw fast handoff transport unavailable", {
-      familyId: params.familyId,
-      transportMode: transport.mode,
-      reason: result.reason,
+    logTransportOutcome({
+      mode: transport.mode,
+      sessionLabel,
+      requestId,
+      outcome: "unavailable",
+      timingsMs: result.timingsMs,
+      detail: result.reason,
     });
-    return { kind: "no_reply" };
+
+    return { kind: "unavailable", reason: result.reason };
   }
 
-  return normalizeStructuredResponse(result.output);
+  if (result.status === "timeout") {
+    logTransportOutcome({
+      mode: transport.mode,
+      sessionLabel,
+      requestId,
+      outcome: "timeout",
+      timingsMs: result.timingsMs,
+      detail: result.reason,
+    });
+
+    return { kind: "timeout" };
+  }
+
+  const normalized = normalizeStructuredResponse(result.output);
+  logTransportOutcome({
+    mode: transport.mode,
+    sessionLabel,
+    requestId,
+    outcome: "ok",
+    timingsMs: result.timingsMs,
+    detail: normalized.kind,
+  });
+
+  return normalized;
 }
