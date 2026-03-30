@@ -947,6 +947,12 @@ export async function runOpenClawFastHandoff(params: {
     return { kind: "timeout" };
   }
 
+  console.log("OpenClaw matched assistant text", {
+    sessionLabel,
+    requestId,
+    output: result.output,
+  });
+
   const normalized = normalizeStructuredResponse(result.output);
   logTransportOutcome({
     mode: transport.mode,
