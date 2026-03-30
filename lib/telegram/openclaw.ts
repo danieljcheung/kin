@@ -7,6 +7,7 @@ import type { KinConversationContext, KinContextEvent } from "@/lib/kin/context"
 const execFileAsync = promisify(execFile);
 const OPENCLAW_TIMEOUT_MS = 30_000;
 const OPENCLAW_AGENT_WAIT_TIMEOUT_MS = 45_000;
+const OPENCLAW_AGENT_WAIT_COMMAND_TIMEOUT_MS = 50_000;
 const OPENCLAW_SESSION_KEY_CACHE_TTL_MS = 10 * 60 * 1_000;
 
 export type OpenClawTransportMode = "local-cli" | "disabled" | "remote-gateway";
@@ -365,10 +366,10 @@ function isLabelAlreadyInUseError(message: string | null): boolean {
   return normalized.includes("label already in use");
 }
 
-async function executeOpenClawCommand(args: string[]): Promise<string> {
+async function executeOpenClawCommand(args: string[], timeoutMs = OPENCLAW_TIMEOUT_MS): Promise<string> {
   const command = process.env.OPENCLAW_BIN?.trim() || "openclaw";
   const { stdout } = await execFileAsync(command, args, {
-    timeout: OPENCLAW_TIMEOUT_MS,
+    timeout: timeoutMs,
     maxBuffer: 1024 * 1024,
     env: process.env,
   });
@@ -734,15 +735,18 @@ function buildOpenClawTransport(): OpenClawTransport {
           }
 
           const waitStdout = await timeStage(timingsMs, "wait", () =>
-            executeOpenClawCommand([
-              ...baseArgs,
-              "agent.wait",
-              "--params",
-              JSON.stringify({
-                runId: runStart.runId,
-                timeoutMs: OPENCLAW_AGENT_WAIT_TIMEOUT_MS,
-              }),
-            ]),
+            executeOpenClawCommand(
+              [
+                ...baseArgs,
+                "agent.wait",
+                "--params",
+                JSON.stringify({
+                  runId: runStart.runId,
+                  timeoutMs: OPENCLAW_AGENT_WAIT_TIMEOUT_MS,
+                }),
+              ],
+              OPENCLAW_AGENT_WAIT_COMMAND_TIMEOUT_MS,
+            ),
           );
           const waitError = extractGatewayError(waitStdout);
 
