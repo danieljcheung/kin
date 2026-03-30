@@ -6,7 +6,7 @@ import type { KinConversationContext, KinContextEvent } from "@/lib/kin/context"
 
 const execFileAsync = promisify(execFile);
 const OPENCLAW_TIMEOUT_MS = 30_000;
-const OPENCLAW_HISTORY_POLL_INTERVALS_MS = [150, 250, 500, 750, 1_000, 1_500, 2_000];
+const OPENCLAW_SESSIONS_SEND_TIMEOUT_SECONDS = 45;
 const OPENCLAW_SESSION_KEY_CACHE_TTL_MS = 10 * 60 * 1_000;
 
 export type OpenClawTransportMode = "local-cli" | "disabled" | "remote-gateway";
@@ -51,7 +51,7 @@ interface GatewayCliEnvelope {
   error?: unknown;
 }
 
-type OpenClawStageName = "resolve" | "create" | "send" | "send_parse" | "poll" | "match" | "total";
+type OpenClawStageName = "resolve" | "create" | "send" | "send_parse" | "total";
 
 const openClawSessionKeyCache = new Map<string, { sessionKey: string; expiresAt: number }>();
 
@@ -210,6 +210,33 @@ function extractCommandOutput(stdout: string): string {
 
 function extractGatewaySendOutput(stdout: string): string | null {
   const envelope = parseGatewayEnvelope(stdout);
+  const payload = envelope.payload;
+
+  if (payload && typeof payload === "object") {
+    const replyRecord = payload.reply;
+
+    if (replyRecord && typeof replyRecord === "object") {
+      const replyText =
+        coerceTextValue((replyRecord as Record<string, unknown>).content) ??
+        coerceTextValue((replyRecord as Record<string, unknown>).text);
+
+      if (replyText) {
+        return replyText;
+      }
+    }
+
+    const payloadStatus = coerceTextValue(payload.status)?.toLowerCase();
+    if (payloadStatus === "ok") {
+      return (
+        coerceTextValue(payload.output) ??
+        coerceTextValue(payload.result) ??
+        coerceTextValue(payload.response) ??
+        coerceTextValue(payload.summary) ??
+        coerceTextValue(payload.message) ??
+        null
+      );
+    }
+  }
 
   return (
     coerceTextValue(envelope.payload?.output) ??
@@ -223,36 +250,6 @@ function extractGatewaySendOutput(stdout: string): string | null {
   );
 }
 
-function extractHistoryMessages(stdout: string): Record<string, unknown>[] {
-  const envelope = parseGatewayEnvelope(stdout);
-  const messages = Array.isArray(envelope.messages)
-    ? envelope.messages
-    : Array.isArray(envelope.payload?.messages)
-      ? envelope.payload.messages
-      : [];
-
-  return messages.filter(
-    (message): message is Record<string, unknown> => !!message && typeof message === "object",
-  );
-}
-
-function extractMatchedAssistantTextFromHistory(stdout: string, requestId: string): string | null {
-  const messages = extractHistoryMessages(stdout);
-
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const record = messages[index];
-    if (record.role !== "assistant") {
-      continue;
-    }
-
-    const text = stripFinalWrapper(coerceTextValue(record.content) ?? coerceTextValue(record.text) ?? "");
-    if (text && text.includes(`REQUEST_ID: ${requestId}`)) {
-      return text;
-    }
-  }
-
-  return null;
-}
 
 function parseGatewayEnvelope(stdout: string): GatewayCliEnvelope {
   const trimmed = stdout.trim();
@@ -338,10 +335,6 @@ async function executeOpenClawCommand(args: string[]): Promise<string> {
   });
 
   return stdout;
-}
-
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function normalizeStructuredResponse(rawOutput: string): OpenClawHandoffResponse {
@@ -661,12 +654,12 @@ function buildOpenClawTransport(): OpenClawTransport {
             sendStdout = await timeStage(timingsMs, "send", () =>
               executeOpenClawCommand([
                 ...baseArgs,
-                "--expect-final",
                 "sessions.send",
                 "--params",
                 JSON.stringify({
-                  key: sessionKey,
+                  sessionKey,
                   message: request.prompt,
+                  timeoutSeconds: OPENCLAW_SESSIONS_SEND_TIMEOUT_SECONDS,
                 }),
               ]),
             );
@@ -693,70 +686,23 @@ function buildOpenClawTransport(): OpenClawTransport {
             extractGatewaySendOutput(sendStdout),
           );
 
-          if (sendOutput) {
-            const normalizedSendOutput = stripFinalWrapper(sendOutput);
-            if (normalizedSendOutput.includes(`REQUEST_ID: ${request.requestId}`)) {
-              return {
-                status: "ok",
-                output: normalizedSendOutput,
-                timingsMs: {
-                  ...timingsMs,
-                  total: Date.now() - totalStartedAt,
-                },
-              };
-            }
-          }
-
-          let matchedAssistantText: string | null = null;
-
-          for (let attempt = 0; attempt < OPENCLAW_HISTORY_POLL_INTERVALS_MS.length; attempt += 1) {
-            const delayMs = OPENCLAW_HISTORY_POLL_INTERVALS_MS[attempt] ?? 0;
-
-            if (attempt > 0 && delayMs > 0) {
-              await sleep(delayMs);
-            }
-
-            const historyStdout = await timeStage(timingsMs, "poll", () =>
-              executeOpenClawCommand([
-                ...baseArgs,
-                "chat.history",
-                "--params",
-                JSON.stringify({
-                  sessionKey,
-                  limit: 10,
-                }),
-              ]),
-            );
-            const historyError = extractGatewayError(historyStdout);
-
-            if (historyError) {
-              clearCachedSessionKey(request.sessionLabel);
-              return {
-                status: "unavailable",
-                reason: `OpenClaw remote gateway history fetch failed: ${historyError}`,
-                timingsMs: {
-                  ...timingsMs,
-                  total: Date.now() - totalStartedAt,
-                },
-              };
-            }
-
-            const matchStartedAt = Date.now();
-            matchedAssistantText = extractMatchedAssistantTextFromHistory(
-              historyStdout,
-              request.requestId,
-            );
-            timingsMs.match = (timingsMs.match ?? 0) + (Date.now() - matchStartedAt);
-
-            if (matchedAssistantText) {
-              break;
-            }
-          }
-
-          if (!matchedAssistantText) {
+          if (!sendOutput) {
             return {
               status: "timeout",
-              reason: "OpenClaw remote gateway returned no direct final output and history did not contain a matching assistant reply before the polling window elapsed.",
+              reason: "OpenClaw sessions.send completed without a usable reply payload.",
+              timingsMs: {
+                ...timingsMs,
+                total: Date.now() - totalStartedAt,
+              },
+            };
+          }
+
+          const normalizedSendOutput = stripFinalWrapper(sendOutput);
+
+          if (!normalizedSendOutput.includes(`REQUEST_ID: ${request.requestId}`)) {
+            return {
+              status: "timeout",
+              reason: "OpenClaw sessions.send returned a reply payload, but it did not contain the expected request id.",
               timingsMs: {
                 ...timingsMs,
                 total: Date.now() - totalStartedAt,
@@ -766,7 +712,7 @@ function buildOpenClawTransport(): OpenClawTransport {
 
           return {
             status: "ok",
-            output: matchedAssistantText,
+            output: normalizedSendOutput,
             timingsMs: {
               ...timingsMs,
               total: Date.now() - totalStartedAt,
