@@ -51,7 +51,7 @@ interface GatewayCliEnvelope {
   error?: unknown;
 }
 
-type OpenClawStageName = "resolve" | "create" | "send" | "poll" | "match" | "total";
+type OpenClawStageName = "resolve" | "create" | "send" | "send_parse" | "poll" | "match" | "total";
 
 const openClawSessionKeyCache = new Map<string, { sessionKey: string; expiresAt: number }>();
 
@@ -206,6 +206,21 @@ function extractCommandOutput(stdout: string): string {
   } catch {
     return trimmed;
   }
+}
+
+function extractGatewaySendOutput(stdout: string): string | null {
+  const envelope = parseGatewayEnvelope(stdout);
+
+  return (
+    coerceTextValue(envelope.payload?.output) ??
+    coerceTextValue(envelope.payload?.result) ??
+    coerceTextValue(envelope.payload?.response) ??
+    coerceTextValue(envelope.payload?.summary) ??
+    coerceTextValue(envelope.payload?.message) ??
+    coerceTextValue(envelope.messages) ??
+    coerceTextValue(envelope.payload) ??
+    null
+  );
 }
 
 function extractHistoryMessages(stdout: string): Record<string, unknown>[] {
@@ -674,6 +689,24 @@ function buildOpenClawTransport(): OpenClawTransport {
             };
           }
 
+          const sendOutput = await timeStage(timingsMs, "send_parse", async () =>
+            extractGatewaySendOutput(sendStdout),
+          );
+
+          if (sendOutput) {
+            const normalizedSendOutput = stripFinalWrapper(sendOutput);
+            if (normalizedSendOutput.includes(`REQUEST_ID: ${request.requestId}`)) {
+              return {
+                status: "ok",
+                output: normalizedSendOutput,
+                timingsMs: {
+                  ...timingsMs,
+                  total: Date.now() - totalStartedAt,
+                },
+              };
+            }
+          }
+
           let matchedAssistantText: string | null = null;
 
           for (let attempt = 0; attempt < OPENCLAW_HISTORY_POLL_INTERVALS_MS.length; attempt += 1) {
@@ -723,7 +756,7 @@ function buildOpenClawTransport(): OpenClawTransport {
           if (!matchedAssistantText) {
             return {
               status: "timeout",
-              reason: "OpenClaw remote gateway history did not contain a matching assistant reply before the polling window elapsed.",
+              reason: "OpenClaw remote gateway returned no direct final output and history did not contain a matching assistant reply before the polling window elapsed.",
               timingsMs: {
                 ...timingsMs,
                 total: Date.now() - totalStartedAt,
