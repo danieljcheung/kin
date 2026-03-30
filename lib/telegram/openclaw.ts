@@ -6,6 +6,8 @@ import type { KinConversationContext, KinContextEvent } from "@/lib/kin/context"
 
 const execFileAsync = promisify(execFile);
 const OPENCLAW_TIMEOUT_MS = 30_000;
+const OPENCLAW_HISTORY_POLL_ATTEMPTS = 6;
+const OPENCLAW_HISTORY_POLL_INTERVAL_MS = 500;
 
 export type OpenClawTransportMode = "local-cli" | "disabled" | "remote-gateway";
 
@@ -322,6 +324,10 @@ async function executeOpenClawCommand(args: string[]): Promise<string> {
   return stdout;
 }
 
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function normalizeStructuredResponse(rawOutput: string): OpenClawHandoffResponse {
   const trimmed = rawOutput.trim();
 
@@ -569,29 +575,40 @@ function buildOpenClawTransport(): OpenClawTransport {
             };
           }
 
-          const historyStdout = await executeOpenClawCommand([
-            ...baseArgs,
-            "chat.history",
-            "--params",
-            JSON.stringify({
-              sessionKey,
-              limit: 10,
-            }),
-          ]);
-          const historyError = extractGatewayError(historyStdout);
+          let resolvedOutput: string | null = null;
 
-          if (historyError) {
-            return {
-              status: "unavailable",
-              reason: `OpenClaw remote gateway history fetch failed: ${historyError}`,
-            };
+          for (let attempt = 0; attempt < OPENCLAW_HISTORY_POLL_ATTEMPTS; attempt += 1) {
+            if (attempt > 0) {
+              await sleep(OPENCLAW_HISTORY_POLL_INTERVAL_MS);
+            }
+
+            const historyStdout = await executeOpenClawCommand([
+              ...baseArgs,
+              "chat.history",
+              "--params",
+              JSON.stringify({
+                sessionKey,
+                limit: 10,
+              }),
+            ]);
+            const historyError = extractGatewayError(historyStdout);
+
+            if (historyError) {
+              return {
+                status: "unavailable",
+                reason: `OpenClaw remote gateway history fetch failed: ${historyError}`,
+              };
+            }
+
+            resolvedOutput = extractNewestAssistantTextAfterSeq(historyStdout, baselineSeq);
+            if (resolvedOutput) {
+              break;
+            }
           }
 
           return {
             status: "ok",
-            output:
-              extractNewestAssistantTextAfterSeq(historyStdout, baselineSeq) ??
-              extractCommandOutput(sendStdout),
+            output: resolvedOutput ?? extractCommandOutput(sendStdout),
           };
         } catch (error) {
           const details =
