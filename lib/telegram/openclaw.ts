@@ -198,6 +198,11 @@ function extractGatewayError(stdout: string): string | null {
 
 function extractGatewaySessionKey(stdout: string): string | null {
   const envelope = parseGatewayEnvelope(stdout);
+
+  if (typeof envelope.key === "string" && envelope.key.trim()) {
+    return envelope.key.trim();
+  }
+
   const payload = envelope.payload;
 
   if (!payload || typeof payload !== "object") {
