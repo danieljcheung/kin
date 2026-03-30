@@ -230,6 +230,15 @@ function extractErrorMessage(error: unknown): string | null {
   return null;
 }
 
+function isLabelAlreadyInUseError(message: string | null): boolean {
+  if (!message) {
+    return false;
+  }
+
+  const normalized = message.toLowerCase();
+  return normalized.includes("label already in use");
+}
+
 async function executeOpenClawCommand(args: string[]): Promise<string> {
   const command = process.env.OPENCLAW_BIN?.trim() || "openclaw";
   const { stdout } = await execFileAsync(command, args, {
@@ -379,17 +388,31 @@ function buildOpenClawTransport(): OpenClawTransport {
           let sessionKey = isMissingSession ? null : extractGatewaySessionKey(resolveStdout);
 
           if (!sessionKey) {
-            const createStdout = await executeOpenClawCommand([
-              ...baseArgs,
-              "sessions.create",
-              "--params",
-              JSON.stringify({
-                label: request.sessionLabel,
-              }),
-            ]);
+            let createStdout = "";
+            let labelAlreadyInUse = false;
+
+            try {
+              createStdout = await executeOpenClawCommand([
+                ...baseArgs,
+                "sessions.create",
+                "--params",
+                JSON.stringify({
+                  label: request.sessionLabel,
+                }),
+              ]);
+            } catch (error) {
+              const createCommandError = extractErrorMessage(error);
+
+              if (isLabelAlreadyInUseError(createCommandError)) {
+                labelAlreadyInUse = true;
+              } else {
+                throw error;
+              }
+            }
+
             const createError = extractGatewayError(createStdout);
 
-            if (createError) {
+            if (createError && !isLabelAlreadyInUseError(createError)) {
               return {
                 status: "unavailable",
                 reason: `OpenClaw remote gateway session creation failed: ${createError}`,
@@ -397,6 +420,36 @@ function buildOpenClawTransport(): OpenClawTransport {
             }
 
             sessionKey = extractGatewaySessionKey(createStdout);
+
+            if (!sessionKey && labelAlreadyInUse) {
+              try {
+                const retryResolveStdout = await executeOpenClawCommand([
+                  ...baseArgs,
+                  "sessions.resolve",
+                  "--params",
+                  JSON.stringify({
+                    label: request.sessionLabel,
+                    includeUnknown: true,
+                  }),
+                ]);
+                const retryResolveError = extractGatewayError(retryResolveStdout);
+
+                if (retryResolveError && !isMissingSessionLookupError(retryResolveError)) {
+                  return {
+                    status: "unavailable",
+                    reason: `OpenClaw remote gateway retry session lookup failed: ${retryResolveError}`,
+                  };
+                }
+
+                sessionKey = extractGatewaySessionKey(retryResolveStdout);
+              } catch (error) {
+                const retryResolveCommandError = extractErrorMessage(error);
+
+                if (!isMissingSessionLookupError(retryResolveCommandError)) {
+                  throw error;
+                }
+              }
+            }
           }
 
           if (!sessionKey) {
