@@ -176,58 +176,41 @@ function extractCommandOutput(stdout: string): string {
   }
 }
 
-function extractGatewayRunId(stdout: string): string | null {
-  const envelope = parseGatewayEnvelope(stdout);
-
-  if (typeof envelope.runId === "string" && envelope.runId.trim()) {
-    return envelope.runId.trim();
-  }
-
-  const payloadRunId = envelope.payload?.runId;
-  return typeof payloadRunId === "string" && payloadRunId.trim()
-    ? payloadRunId.trim()
-    : null;
-}
-
-function extractAssistantTextFromHistory(stdout: string, runId?: string | null): string | null {
+function extractHistoryMessages(stdout: string): Record<string, unknown>[] {
   const envelope = parseGatewayEnvelope(stdout);
   const messages = Array.isArray(envelope.messages)
     ? envelope.messages
     : Array.isArray(envelope.payload?.messages)
       ? envelope.payload.messages
-      : null;
+      : [];
 
-  if (!messages) {
+  return messages.filter(
+    (message): message is Record<string, unknown> => !!message && typeof message === "object",
+  );
+}
+
+function extractMessageSeq(message: Record<string, unknown>): number | null {
+  const openclaw = message.__openclaw;
+  if (!openclaw || typeof openclaw !== "object") {
     return null;
   }
 
-  const normalizedRunId = runId?.trim() || null;
+  const seq = (openclaw as Record<string, unknown>).seq;
+  return typeof seq === "number" && Number.isFinite(seq) ? seq : null;
+}
+
+function extractNewestAssistantTextAfterSeq(stdout: string, minimumSeq: number): string | null {
+  const messages = extractHistoryMessages(stdout);
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-
-    if (!message || typeof message !== "object") {
-      continue;
-    }
-
-    const record = message as Record<string, unknown>;
+    const record = messages[index];
     if (record.role !== "assistant") {
       continue;
     }
 
-    if (normalizedRunId) {
-      const messageRunId =
-        typeof record.runId === "string"
-          ? record.runId
-          : record.__openclaw && typeof record.__openclaw === "object"
-            ? typeof (record.__openclaw as Record<string, unknown>).runId === "string"
-              ? ((record.__openclaw as Record<string, unknown>).runId as string)
-              : null
-            : null;
-
-      if (messageRunId && messageRunId !== normalizedRunId) {
-        continue;
-      }
+    const seq = extractMessageSeq(record);
+    if (seq !== null && seq <= minimumSeq) {
+      continue;
     }
 
     const text = stripFinalWrapper(coerceTextValue(record.content) ?? coerceTextValue(record.text) ?? "");
@@ -237,6 +220,20 @@ function extractAssistantTextFromHistory(stdout: string, runId?: string | null):
   }
 
   return null;
+}
+
+function extractLatestHistorySeq(stdout: string): number {
+  const messages = extractHistoryMessages(stdout);
+  let latestSeq = 0;
+
+  for (const message of messages) {
+    const seq = extractMessageSeq(message);
+    if (seq !== null && seq > latestSeq) {
+      latestSeq = seq;
+    }
+  }
+
+  return latestSeq;
 }
 
 function parseGatewayEnvelope(stdout: string): GatewayCliEnvelope {
@@ -534,6 +531,25 @@ function buildOpenClawTransport(): OpenClawTransport {
             };
           }
 
+          const baselineHistoryStdout = await executeOpenClawCommand([
+            ...baseArgs,
+            "chat.history",
+            "--params",
+            JSON.stringify({
+              sessionKey,
+              limit: 10,
+            }),
+          ]);
+          const baselineHistoryError = extractGatewayError(baselineHistoryStdout);
+
+          if (baselineHistoryError) {
+            return {
+              status: "unavailable",
+              reason: `OpenClaw remote gateway baseline history fetch failed: ${baselineHistoryError}`,
+            };
+          }
+
+          const baselineSeq = extractLatestHistorySeq(baselineHistoryStdout);
           const sendStdout = await executeOpenClawCommand([
             ...baseArgs,
             "--expect-final",
@@ -553,7 +569,6 @@ function buildOpenClawTransport(): OpenClawTransport {
             };
           }
 
-          const runId = extractGatewayRunId(sendStdout);
           const historyStdout = await executeOpenClawCommand([
             ...baseArgs,
             "chat.history",
@@ -575,7 +590,7 @@ function buildOpenClawTransport(): OpenClawTransport {
           return {
             status: "ok",
             output:
-              extractAssistantTextFromHistory(historyStdout, runId) ??
+              extractNewestAssistantTextAfterSeq(historyStdout, baselineSeq) ??
               extractCommandOutput(sendStdout),
           };
         } catch (error) {
