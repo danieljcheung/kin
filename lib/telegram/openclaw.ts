@@ -217,6 +217,19 @@ function isMissingSessionLookupError(message: string | null): boolean {
   return normalized.includes("no session found with label");
 }
 
+function extractErrorMessage(error: unknown): string | null {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "string") {
+    const trimmed = error.trim();
+    return trimmed || null;
+  }
+
+  return null;
+}
+
 async function executeOpenClawCommand(args: string[]): Promise<string> {
   const command = process.env.OPENCLAW_BIN?.trim() || "openclaw";
   const { stdout } = await execFileAsync(command, args, {
@@ -329,17 +342,32 @@ function buildOpenClawTransport(): OpenClawTransport {
         ];
 
         try {
-          const resolveStdout = await executeOpenClawCommand([
-            ...baseArgs,
-            "sessions.resolve",
-            "--params",
-            JSON.stringify({
-              label: request.sessionLabel,
-              includeUnknown: true,
-            }),
-          ]);
+          let resolveStdout = "";
+          let missingSessionFromResolveError = false;
+
+          try {
+            resolveStdout = await executeOpenClawCommand([
+              ...baseArgs,
+              "sessions.resolve",
+              "--params",
+              JSON.stringify({
+                label: request.sessionLabel,
+                includeUnknown: true,
+              }),
+            ]);
+          } catch (error) {
+            const resolveCommandError = extractErrorMessage(error);
+
+            if (isMissingSessionLookupError(resolveCommandError)) {
+              missingSessionFromResolveError = true;
+            } else {
+              throw error;
+            }
+          }
+
           const resolveError = extractGatewayError(resolveStdout);
-          const isMissingSession = isMissingSessionLookupError(resolveError);
+          const isMissingSession =
+            missingSessionFromResolveError || isMissingSessionLookupError(resolveError);
 
           if (resolveError && !isMissingSession) {
             return {
