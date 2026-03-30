@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BackgroundPaths } from "./components/background-paths";
 
 const valueProps = [
@@ -9,7 +10,7 @@ const valueProps = [
   {
     title: "Works where everyone already is",
     description:
-      "No new app to convince people to download. Kin joins the family WhatsApp thread and becomes useful right away.",
+      "Kin lives in Telegram for the MVP, so your household can use it in the same chat where plans, reminders, and logistics already happen.",
   },
   {
     title: "Built for real households",
@@ -21,21 +22,21 @@ const valueProps = [
 const steps = [
   {
     number: "01",
-    title: "Scan a QR code",
+    title: "Create your household",
     description:
-      "Start setup in a minute. Connect Kin to your family WhatsApp with a simple QR-based flow.",
+      "Start with a simple account flow, then create your household in a minute or two.",
   },
   {
     number: "02",
-    title: "Invite Kin into the group",
+    title: "Open Kin in Telegram",
     description:
-      "Add Kin to the thread where plans, reminders, and questions already happen.",
+      "Use the onboarding deep link or QR handoff to open Kin and connect it to your family Telegram setup.",
   },
   {
     number: "03",
-    title: "Ask naturally",
+    title: "Add Kin to the group",
     description:
-      "Use everyday language like \"remind us about Grandma's flight\" or \"what do we need for Saturday dinner?\"",
+      "Bring Kin into the Telegram group where reminders, plans, and little household details already live.",
   },
 ];
 
@@ -57,7 +58,7 @@ export default function Page() {
               </div>
               <div>
                 <p className="text-base font-semibold tracking-tight">Kin</p>
-                <p className="text-xs text-stone-500">Private AI for families</p>
+                <p className="text-xs text-stone-500">A private assistant for family life</p>
               </div>
             </a>
 
@@ -73,12 +74,20 @@ export default function Page() {
               </a>
             </div>
 
-            <a
-              href="#setup"
-              className="inline-flex items-center justify-center rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-stone-800"
-            >
-              Set up Kin
-            </a>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/signin?next=/dashboard"
+                className="hidden items-center justify-center rounded-full border border-stone-300 bg-white/80 px-5 py-2.5 text-sm font-medium text-stone-800 transition hover:border-stone-400 hover:bg-white sm:inline-flex"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/signup"
+                className="inline-flex items-center justify-center rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-stone-800"
+              >
+                Set up Kin
+              </Link>
+            </div>
           </div>
         </nav>
 
@@ -97,25 +106,28 @@ export default function Page() {
 
           <div className="relative z-10 max-w-2xl">
             <span className="inline-flex items-center rounded-full border border-yellow-200 bg-white/80 px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-stone-600 shadow-sm">
-              Lives in WhatsApp
+              Telegram-first setup
             </span>
             <h1 className="mt-8 max-w-xl text-5xl font-semibold tracking-tight text-stone-950 sm:text-6xl">
               Your family&apos;s assistant, right in the group chat.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-stone-600 sm:text-xl">
-              Kin is a private AI family assistant that helps your household stay
-              on top of plans, reminders, and little details without adding
-              another app to manage.
+              Kin is a private AI family assistant that helps your household stay on top of plans, reminders, and little details without adding another workflow to manage.
             </p>
 
             <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-              <a
-                id="setup"
-                href="#final-cta"
+              <Link
+                href="/signup"
                 className="inline-flex items-center justify-center rounded-full bg-stone-900 px-6 py-3.5 text-base font-medium text-white shadow-[0_14px_30px_rgba(41,37,36,0.18)] transition hover:-translate-y-0.5 hover:bg-stone-800"
               >
-                Install Kin via WhatsApp
-              </a>
+                Create your household
+              </Link>
+              <Link
+                href="/signin?next=/dashboard"
+                className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-white/80 px-6 py-3.5 text-base font-medium text-stone-800 transition hover:border-stone-400 hover:bg-white"
+              >
+                Log in to dashboard
+              </Link>
               <a
                 href="#how"
                 className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-white/80 px-6 py-3.5 text-base font-medium text-stone-800 transition hover:border-stone-400 hover:bg-white"
@@ -129,7 +141,7 @@ export default function Page() {
                 Private family context
               </span>
               <span className="rounded-full bg-white/75 px-4 py-2 shadow-sm">
-                QR-based onboarding
+                QR + deep-link onboarding
               </span>
               <span className="rounded-full bg-white/75 px-4 py-2 shadow-sm">
                 Natural chat replies
@@ -144,7 +156,7 @@ export default function Page() {
                 <div className="flex items-center justify-between border-b border-stone-200 pb-4">
                   <div>
                     <p className="text-sm font-semibold text-stone-900">Family chat</p>
-                    <p className="text-xs text-stone-500">Kin joined via WhatsApp</p>
+                    <p className="text-xs text-stone-500">Kin joined via Telegram</p>
                   </div>
                   <div className="rounded-full bg-white px-3 py-1 text-xs text-stone-500 shadow-sm">
                     Secure setup
@@ -153,21 +165,16 @@ export default function Page() {
 
                 <div className="space-y-3 py-5">
                   <div className="ml-auto max-w-[82%] rounded-3xl rounded-br-md bg-[#efe6d4] px-4 py-3 text-sm leading-6 text-stone-700">
-                    Can you remind everyone about Ella&apos;s dentist appointment
-                    next Thursday at 3?
+                    Can you remind everyone about Ella&apos;s dentist appointment next Thursday at 3?
                   </div>
                   <div className="max-w-[86%] rounded-3xl rounded-bl-md bg-white px-4 py-3 text-sm leading-6 text-stone-800 shadow-sm">
-                    Absolutely. I&apos;ll remind the group the night before and
-                    again two hours before. I can also add
-                    {" "}
-                    &quot;leave school early&quot; to the plan if you want.
+                    Absolutely. I&apos;ll remind the group the night before and again two hours before. I can also add &quot;leave school early&quot; to the plan if you want.
                   </div>
                   <div className="ml-auto max-w-[75%] rounded-3xl rounded-br-md bg-[#efe6d4] px-4 py-3 text-sm leading-6 text-stone-700">
                     Yes, and what do we still need for Saturday dinner?
                   </div>
                   <div className="max-w-[86%] rounded-3xl rounded-bl-md bg-white px-4 py-3 text-sm leading-6 text-stone-800 shadow-sm">
-                    You already mentioned pasta, tomatoes, basil, and dessert.
-                    Missing: garlic bread and sparkling water.
+                    You already mentioned pasta, tomatoes, basil, and dessert. Missing: garlic bread and sparkling water.
                   </div>
                 </div>
 
@@ -177,7 +184,7 @@ export default function Page() {
                       Setup
                     </p>
                     <p className="mt-2 text-sm font-medium text-stone-800">
-                      Connect with one QR scan
+                      Connect with one onboarding handoff
                     </p>
                   </div>
                   <div className="rounded-2xl bg-[#fff2bf] p-4 shadow-sm">
@@ -232,9 +239,7 @@ export default function Page() {
                 Setup is quick, and the experience feels familiar from day one.
               </h2>
               <p className="mt-5 max-w-lg text-base leading-7 text-stone-600">
-                Kin is designed to disappear into the family workflow you already
-                have. Connect it, add it to the thread, and start asking for help
-                the same way you already message each other.
+                Kin is designed to disappear into the family workflow you already have. Create your household, connect Kin in Telegram, and start asking for help the same way you already message each other.
               </p>
             </div>
 
@@ -271,10 +276,7 @@ export default function Page() {
                 A family assistant should feel private, not performative.
               </h2>
               <p className="mt-5 max-w-xl text-base leading-7 text-stone-600">
-                Kin is built for close, trusted groups. The goal is simple:
-                useful help inside your family chat, with a setup flow that feels
-                straightforward and respectful of the personal nature of the
-                conversation.
+                Kin is built for close, trusted groups. The goal is simple: useful help inside your family chat, with a setup flow that feels straightforward and respectful of the personal nature of the conversation.
               </p>
             </div>
 
@@ -309,24 +311,23 @@ export default function Page() {
                     Bring Kin into the family chat in a few minutes.
                   </h2>
                   <p className="mt-5 text-base leading-7 text-stone-300">
-                    Start with a QR-based WhatsApp setup, add Kin to your group,
-                    and let the household ask for help naturally.
+                    Create your household, connect Kin in Telegram, and head into the dashboard to confirm everything is healthy.
                   </p>
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row">
-                  <a
-                    href="#"
+                  <Link
+                    href="/signup"
                     className="inline-flex items-center justify-center rounded-full bg-[#ffe58f] px-6 py-3.5 text-base font-medium text-stone-900 transition hover:bg-[#ffdf74]"
                   >
-                    Start WhatsApp setup
-                  </a>
-                  <a
-                    href="#privacy"
+                    Start setup
+                  </Link>
+                  <Link
+                    href="/signin?next=/dashboard"
                     className="inline-flex items-center justify-center rounded-full border border-white/20 px-6 py-3.5 text-base font-medium text-white transition hover:bg-white/10"
                   >
-                    Read about privacy
-                  </a>
+                    Go to dashboard
+                  </Link>
                 </div>
               </div>
             </div>
@@ -347,9 +348,9 @@ export default function Page() {
             <a href="#privacy" className="transition hover:text-stone-700">
               Privacy
             </a>
-            <a href="#final-cta" className="transition hover:text-stone-700">
-              Setup
-            </a>
+            <Link href="/signin?next=/dashboard" className="transition hover:text-stone-700">
+              Log in
+            </Link>
           </div>
         </footer>
       </div>
