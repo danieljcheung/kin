@@ -16,12 +16,25 @@ import {
 
 configureAmplify();
 
+const SESSION_CHECK_TIMEOUT_MS = 4000;
+
 function getSigninErrorMessage(err: unknown) {
   if (!(err instanceof Error)) {
     return "Unable to sign you in.";
   }
 
   return err.message;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  return await Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      window.setTimeout(() => {
+        reject(new Error("SESSION_CHECK_TIMEOUT"));
+      }, timeoutMs);
+    }),
+  ]);
 }
 
 function SigninPageContent() {
@@ -65,7 +78,10 @@ function SigninPageContent() {
 
     async function redirectIfAuthenticated() {
       try {
-        const session = await fetchAuthSession();
+        const session = await withTimeout(
+          fetchAuthSession(),
+          SESSION_CHECK_TIMEOUT_MS,
+        );
 
         if (!cancelled && session.tokens?.accessToken) {
           clearPendingSignupState();
@@ -73,7 +89,8 @@ function SigninPageContent() {
           return;
         }
       } catch {
-        // Continue to the sign-in form if there is no current session.
+        // Continue to the sign-in form if there is no current session
+        // or if session restoration stalls in the browser.
       } finally {
         if (!cancelled) {
           setCheckingSession(false);
@@ -81,7 +98,7 @@ function SigninPageContent() {
       }
     }
 
-    redirectIfAuthenticated();
+    void redirectIfAuthenticated();
 
     return () => {
       cancelled = true;
@@ -140,10 +157,10 @@ function SigninPageContent() {
               Sign in
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-stone-950">
-              Continue your setup
+              Continue to Kin
             </h1>
             <p className="mt-3 text-sm leading-6 text-stone-600">
-              Sign in to continue to your household onboarding.
+              Sign in to continue to your household dashboard or setup flow.
             </p>
           </div>
 
@@ -196,7 +213,7 @@ function SigninPageContent() {
 
             <button
               type="submit"
-              disabled={loading || checkingSession}
+              disabled={loading}
               className="inline-flex w-full items-center justify-center rounded-full bg-stone-900 px-6 py-3.5 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? "Signing in..." : "Sign in"}
