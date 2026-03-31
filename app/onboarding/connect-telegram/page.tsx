@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { OnboardingShell } from "@/app/components/onboarding-shell";
 
 async function copyText(value: string) {
   if (
@@ -20,7 +21,7 @@ async function copyText(value: string) {
 
 function getQrCodeUrl(value: string) {
   const params = new URLSearchParams({
-    size: "280x280",
+    size: "320x320",
     data: value,
     margin: "0",
   });
@@ -49,189 +50,152 @@ function ConnectTelegramPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-6 py-12 text-stone-900">
-      <div className="mx-auto max-w-2xl">
-        <div className="rounded-[2rem] border border-white/80 bg-white/80 p-8 shadow-[0_24px_90px_rgba(103,76,18,0.08)] backdrop-blur-sm">
-          <div className="mb-8">
-            <p className="text-sm font-medium uppercase tracking-[0.22em] text-stone-500">
-              Step 4
+    <OnboardingShell
+      currentStep="telegram"
+      title="Connect Telegram"
+      description="Kin works in your family Telegram group. Open Telegram to continue setup, then add Kin to the conversation."
+      showBack
+      backHref="/onboarding/household"
+    >
+      <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+        <section className="order-2 space-y-8 lg:order-1">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#685b2a]">
+              Step 3 of 4
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-stone-950">
-              Connect Kin to Telegram
-            </h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-stone-600">
-              Open Kin in Telegram, follow the bot prompts, and add Kin to your family
-              group. Once that&apos;s done, we&apos;ll finish setup automatically.
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-stone-950">
+              Continue in Telegram
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-stone-600 md:text-base">
+              Open Kin in Telegram to continue setup, then add it to your family group so we can finish automatically.
             </p>
           </div>
 
-          <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
-            <div className="space-y-5">
-              <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-                <h2 className="text-base font-semibold text-stone-900">
-                  What happens next
-                </h2>
-                <ol className="mt-4 space-y-3 text-sm leading-6 text-stone-600">
-                  <li>
-                    <span className="font-medium text-stone-800">1.</span> Open Kin in Telegram.
-                  </li>
-                  <li>
-                    <span className="font-medium text-stone-800">2.</span> Follow the prompt in the bot chat.
-                  </li>
-                  <li>
-                    <span className="font-medium text-stone-800">3.</span> Add Kin to your family Telegram group.
-                  </li>
-                  <li>
-                    <span className="font-medium text-stone-800">4.</span> Return here while we verify the connection.
-                  </li>
-                </ol>
+          <div className="space-y-5">
+            {[
+              {
+                number: "1",
+                title: "Open Kin in Telegram",
+                body: "Start the setup in Telegram on your phone or desktop.",
+                tone: "bg-[#feeaac] text-[#5c4f20]",
+              },
+              {
+                number: "2",
+                title: "Continue with your setup link",
+                body: "Telegram will open Kin with the connection already prepared.",
+                tone: "bg-[#e5e2da] text-stone-700",
+              },
+              {
+                number: "3",
+                title: "Add Kin to your family group",
+                body: "Once Kin is in the group, setup can finish automatically.",
+                tone: "bg-[#e5e2da] text-stone-700",
+              },
+            ].map((item) => (
+              <div key={item.number} className="flex items-start gap-4 rounded-[1.5rem] border border-stone-200 bg-white p-5 shadow-[0_16px_40px_rgba(104,91,42,0.05)]">
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${item.tone}`}>
+                  {item.number}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-stone-900">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-600">{item.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-[1.5rem] border border-stone-200 bg-[#faf8f2] p-5">
+            <h3 className="text-base font-semibold text-stone-900">Need the link on another device?</h3>
+            <p className="mt-2 text-sm leading-6 text-stone-600">
+              Use the button if you’re already on your phone, or copy the link and send it to yourself.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                disabled={!deepLink}
+                className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
+              >
+                {copyState === "copied"
+                  ? "Link copied"
+                  : copyState === "error"
+                    ? "Copy unavailable"
+                    : "Copy link"}
+              </button>
+              <Link
+                href={{
+                  pathname: "/onboarding/waiting",
+                  query: {
+                    ...(bindingId ? { bindingId } : {}),
+                    ...(onboardingToken ? { onboardingToken } : {}),
+                  },
+                }}
+                className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900"
+              >
+                I already added Kin
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <section className="order-1 flex flex-col items-center lg:order-2">
+          <div className="relative w-full max-w-md rounded-[2rem] border border-white/70 bg-white/70 p-6 shadow-[0_24px_90px_rgba(103,76,18,0.08)] backdrop-blur-sm">
+            <div className="absolute inset-0 rounded-[2rem] bg-[radial-gradient(circle_at_center,rgba(242,254,222,0.8),rgba(247,246,242,0)_72%)] opacity-80" />
+            <div className="relative z-10 rounded-[1.75rem] border border-stone-200 bg-white p-6 shadow-inner">
+              <div className="flex items-center justify-between border-b border-stone-200 pb-4">
+                <div>
+                  <p className="text-sm font-semibold text-stone-900">Continue on your device</p>
+                  <p className="text-xs text-stone-500">Use mobile or desktop Telegram</p>
+                </div>
+                <div className="rounded-full bg-[#f4f0e4] px-3 py-1 text-xs text-stone-600">
+                  Ready to open
+                </div>
               </div>
 
-              <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-                <h2 className="text-base font-semibold text-stone-900">
-                  Telegram link
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-stone-600">
-                  Open this link on your phone to jump straight into Telegram. If
-                  you&apos;re on desktop, copy the link and send it to your mobile device.
-                </p>
+              <div className="mt-5 flex flex-col items-center">
+                {qrCodeUrl ? (
+                  <div className="overflow-hidden rounded-[1.5rem] border border-stone-200 bg-[#f9f6ef] p-4 shadow-[0_18px_60px_rgba(103,76,18,0.08)]">
+                    <Image
+                      src={qrCodeUrl}
+                      alt="QR code for the Telegram deep link"
+                      width={320}
+                      height={320}
+                      sizes="320px"
+                      unoptimized
+                      className="h-auto w-full rounded-2xl"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex min-h-[320px] w-full items-center justify-center rounded-[1.5rem] border border-dashed border-stone-300 bg-[#faf8f2] p-6 text-center">
+                    <p className="max-w-xs text-sm leading-6 text-stone-600">
+                      We’ll show a QR code here once the Telegram deep link is ready.
+                    </p>
+                  </div>
+                )}
 
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                  {deepLink ? (
-                    <a
-                      href={deepLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center justify-center rounded-full bg-stone-900 px-6 py-3.5 text-sm font-medium text-white transition hover:bg-stone-800"
-                    >
-                      Open Telegram link
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled
-                      className="inline-flex items-center justify-center rounded-full bg-stone-300 px-6 py-3.5 text-sm font-medium text-white"
-                    >
-                      Telegram link unavailable
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={handleCopyLink}
-                    disabled={!deepLink}
-                    className="inline-flex items-center justify-center rounded-full border border-stone-300 px-6 py-3.5 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
+                <div className="mt-6 flex w-full flex-col items-center gap-4">
+                  <a
+                    href={deepLink ?? "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`inline-flex w-full items-center justify-center rounded-full px-6 py-4 text-base font-medium transition ${
+                      deepLink
+                        ? "bg-stone-900 text-white shadow-[0_14px_30px_rgba(41,37,36,0.18)] hover:bg-stone-800"
+                        : "cursor-not-allowed bg-stone-300 text-white"
+                    }`}
                   >
-                    {copyState === "copied"
-                      ? "Link copied"
-                      : copyState === "error"
-                        ? "Copy unavailable"
-                        : "Copy link"}
-                  </button>
-                </div>
-
-                <div className="mt-4 rounded-2xl border border-stone-200 bg-white px-4 py-3">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                    Telegram deep link
-                  </p>
-                  <p className="mt-2 break-all text-sm leading-6 text-stone-700">
-                    {deepLink ?? "Bot username/deep link not configured yet"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-                <h2 className="text-base font-semibold text-stone-900">
-                  Connection details
-                </h2>
-
-                <dl className="mt-4 space-y-3 text-sm text-stone-600">
-                  <div>
-                    <dt className="font-medium text-stone-800">Binding ID</dt>
-                    <dd className="mt-1 break-all">{bindingId ?? "Not available yet"}</dd>
+                    Open Telegram
+                  </a>
+                  <div className="rounded-full bg-[#f4f0e4] px-5 py-3 text-sm text-stone-600">
+                    Use the button on mobile, or scan from desktop.
                   </div>
-
-                  <div>
-                    <dt className="font-medium text-stone-800">Onboarding token</dt>
-                    <dd className="mt-1 break-all">
-                      {onboardingToken ?? "Not available yet"}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <Link
-                  href={{
-                    pathname: "/onboarding/waiting",
-                    query: {
-                      ...(bindingId ? { bindingId } : {}),
-                      ...(onboardingToken ? { onboardingToken } : {}),
-                    },
-                  }}
-                  className="inline-flex items-center justify-center rounded-full border border-stone-300 px-6 py-3.5 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900"
-                >
-                  I added Kin already
-                </Link>
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-              <h2 className="text-base font-semibold text-stone-900">
-                Open on your phone
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-stone-600">
-                Telegram setup works best on mobile. Use the button above if
-                you&apos;re already on your phone, or scan the QR code to open the
-                same Telegram deep link on your device.
-              </p>
-
-              <div className="mt-5 rounded-3xl border border-stone-200 bg-white p-5 shadow-[0_16px_40px_rgba(103,76,18,0.06)]">
-                <div className="rounded-[1.75rem] border border-stone-200 bg-[linear-gradient(180deg,rgba(255,248,235,0.9),rgba(255,255,255,1))] p-5">
-                  {qrCodeUrl ? (
-                    <>
-                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                        Scan to open Telegram
-                      </p>
-                      <div className="mt-4 overflow-hidden rounded-[1.5rem] border border-stone-200 bg-white p-4">
-                        <Image
-                          src={qrCodeUrl}
-                          alt="QR code for the Telegram deep link"
-                          width={280}
-                          height={280}
-                          sizes="280px"
-                          unoptimized
-                          className="h-auto w-full rounded-2xl"
-                        />
-                      </div>
-                      <p className="mt-4 text-sm leading-6 text-stone-600">
-                        Scan this code with your phone camera to open the same Telegram
-                        deep link as the button above.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                        QR code unavailable
-                      </p>
-                      <div className="mt-4 rounded-[1.5rem] border border-dashed border-stone-300 bg-white/80 px-4 py-8 text-center">
-                        <p className="text-sm font-medium text-stone-700">
-                          We&apos;ll show a QR code here once the Telegram deep link is ready.
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-stone-600">
-                          Use the direct link button when it becomes available, or come
-                          back after restarting this step.
-                        </p>
-                      </div>
-                    </>
-                  )}
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </section>
       </div>
-    </main>
+    </OnboardingShell>
   );
 }
 

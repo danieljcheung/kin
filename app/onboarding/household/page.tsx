@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { fetchUserAttributes, getCurrentUser } from "aws-amplify/auth";
 import { useRouter } from "next/navigation";
+import { OnboardingShell } from "@/app/components/onboarding-shell";
 import { configureAmplify } from "@/lib/amplify";
 import { buildSigninHref } from "@/lib/auth-flow";
 import { loadPendingSignupState } from "@/lib/pending-signup";
@@ -63,7 +64,7 @@ export default function HouseholdOnboardingPage() {
       }
     }
 
-    loadIdentity();
+    void loadIdentity();
   }, []);
 
   useEffect(() => {
@@ -119,9 +120,7 @@ export default function HouseholdOnboardingPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          result?.error?.message ?? "Unable to create household.",
-        );
+        throw new Error(result?.error?.message ?? "Unable to create household.");
       }
 
       setSuccess("Household created successfully.");
@@ -130,15 +129,10 @@ export default function HouseholdOnboardingPage() {
       const onboardingToken = result?.data?.telegram?.binding?.onboardingToken;
       const bindingId = result?.data?.telegram?.binding?.id;
 
-      const nextUrl = new URL(
-        "/onboarding/connect-telegram",
-        window.location.origin,
-      );
+      const nextUrl = new URL("/onboarding/connect-telegram", window.location.origin);
 
       if (bindingId) nextUrl.searchParams.set("bindingId", bindingId);
-      if (onboardingToken) {
-        nextUrl.searchParams.set("onboardingToken", onboardingToken);
-      }
+      if (onboardingToken) nextUrl.searchParams.set("onboardingToken", onboardingToken);
       if (deepLink) nextUrl.searchParams.set("deepLink", deepLink);
 
       router.push(nextUrl.pathname + nextUrl.search);
@@ -152,80 +146,97 @@ export default function HouseholdOnboardingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-6 py-12 text-stone-900">
-      <div className="mx-auto max-w-md">
-        <div className="rounded-[2rem] border border-white/80 bg-white/80 p-8 shadow-[0_24px_90px_rgba(103,76,18,0.08)] backdrop-blur-sm">
-          <div className="mb-8">
-            <p className="text-sm font-medium uppercase tracking-[0.22em] text-stone-500">
-              Step 3
+    <OnboardingShell
+      currentStep="household"
+      title="Create your household"
+      description="Give your family space a name. Next, you’ll connect Kin to Telegram."
+      showBack
+      backHref="/signup/confirm"
+    >
+      <div className="mx-auto max-w-3xl">
+        <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+          <section className="rounded-[1.75rem] border border-stone-200 bg-[#faf8f2] p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
+              Household step
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-stone-950">
-              Create your household
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-stone-600">
-              Give your Kin home a name. Next, we’ll connect it to Telegram.
-            </p>
-          </div>
-
-          {loadingIdentity ? (
-            <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
-              Loading your account...
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-stone-950">
+              Set up your family space
+            </h2>
+            <div className="mt-6 space-y-4 text-sm leading-7 text-stone-600">
+              <p>
+                Choose the name you want to see across setup and in the dashboard.
+              </p>
+              <div className="rounded-[1.5rem] border border-stone-200 bg-white px-4 py-4">
+                <p className="font-medium text-stone-900">What happens next</p>
+                <ul className="mt-3 space-y-3">
+                  <li>1. Create your household</li>
+                  <li>2. Open Kin in Telegram</li>
+                  <li>3. Add Kin to your family group</li>
+                </ul>
+              </div>
             </div>
-          ) : null}
+          </section>
 
-          {!loadingIdentity && identity ? (
-            <div className="mb-5 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
-              Signed in as{" "}
-              <span className="font-medium text-stone-800">{identity.email}</span>
-            </div>
-          ) : null}
-
-          {!loadingIdentity && !identity ? (
-            <button
-              type="button"
-              onClick={() => router.push(signinHref)}
-              className="w-full rounded-full border border-stone-300 px-6 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900"
-            >
-              Sign in to continue
-            </button>
-          ) : null}
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-stone-700">
-                Household name
-              </label>
-              <input
-                type="text"
-                value={familyName}
-                onChange={(e) => setFamilyName(e.target.value)}
-                className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-stone-500"
-                placeholder="Cheung Family"
-              />
-            </div>
-
-            {error ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
+          <section className="rounded-[1.75rem] border border-stone-200 bg-white p-6 shadow-[0_18px_60px_rgba(104,91,42,0.06)]">
+            {loadingIdentity ? (
+              <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
+                Loading your account...
               </div>
             ) : null}
 
-            {success ? (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {success}
+            {!loadingIdentity && identity ? (
+              <div className="mb-5 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
+                Signed in as <span className="font-medium text-stone-800">{identity.email}</span>
               </div>
             ) : null}
 
-            <button
-              type="submit"
-              disabled={loadingIdentity || submitting || !identity}
-              className="inline-flex w-full items-center justify-center rounded-full bg-stone-900 px-6 py-3.5 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? "Creating household..." : "Create household"}
-            </button>
-          </form>
+            {!loadingIdentity && !identity ? (
+              <button
+                type="button"
+                onClick={() => router.push(signinHref)}
+                className="w-full rounded-full border border-stone-300 px-6 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900"
+              >
+                Sign in to continue
+              </button>
+            ) : null}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-stone-700">
+                  Household name
+                </label>
+                <input
+                  type="text"
+                  value={familyName}
+                  onChange={(e) => setFamilyName(e.target.value)}
+                  className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-stone-500"
+                  placeholder="Cheung Family"
+                />
+              </div>
+
+              {error ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              ) : null}
+
+              {success ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {success}
+                </div>
+              ) : null}
+
+              <button
+                type="submit"
+                disabled={loadingIdentity || submitting || !identity}
+                className="inline-flex w-full items-center justify-center rounded-full bg-stone-900 px-6 py-3.5 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting ? "Creating household..." : "Continue"}
+              </button>
+            </form>
+          </section>
         </div>
       </div>
-    </main>
+    </OnboardingShell>
   );
 }
