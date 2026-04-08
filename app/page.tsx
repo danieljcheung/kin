@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, type Variants } from "framer-motion";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { BackgroundPaths } from "./components/background-paths";
@@ -52,14 +52,14 @@ const familyUseCases = [
   "Quick answers when someone asks, ‘what’s the plan?’",
 ];
 
-const introBubbleMotion = {
+const introBubbleMotion: Variants = {
   hidden: { opacity: 0, y: 18, scale: 0.985, filter: "blur(2px)" },
   shown: {
     opacity: 1,
     y: 0,
     scale: 1,
     filter: "blur(0px)",
-    transition: { duration: 0.52, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.52, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
