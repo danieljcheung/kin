@@ -79,7 +79,7 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    const timers: Array<ReturnType<typeof window.setTimeout>> = [];
+    const timers: ReturnType<typeof setTimeout>[] = [];
 
     timers.push(
       window.setTimeout(() => {
