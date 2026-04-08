@@ -15,6 +15,7 @@
     "aws-amplify": "^6.16.3",
     "bcryptjs": "^3.0.3",
     "framer-motion": "^12.38.0",
+    "gsap": "^3.14.2",
     "next": "16.2.1",
     "pg": "^8.20.0",
     "prisma": "^7.5.0",
