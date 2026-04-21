@@ -16,6 +16,12 @@ interface SourceKinEventTaskContext {
   createdAt: Date;
 }
 
+interface ReminderContinuationCandidate {
+  id: string;
+  text: string | null;
+  createdAt: Date;
+}
+
 export type TelegramReminderFastPathResult =
   | { kind: "not_applicable" }
   | { kind: "clarify"; text: string }
@@ -74,6 +80,62 @@ async function resolveGroupBindingId(
   return rows[0]?.id ?? null;
 }
 
+async function loadReminderContinuationCandidate(
+  context: SourceKinEventTaskContext,
+): Promise<ReminderContinuationCandidate | null> {
+  if (!context.familyId) {
+    return null;
+  }
+
+  const rows = await prisma.$queryRaw<ReminderContinuationCandidate[]>(Prisma.sql`
+    SELECT "id", "text", "createdAt"
+    FROM "KinEvent"
+    WHERE "familyId" = ${context.familyId}
+      AND "id" <> ${context.id}
+      AND "text" IS NOT NULL
+      AND "createdAt" >= ${new Date(context.createdAt.getTime() - 30 * 60 * 1_000)}
+      ${context.groupBindingId ? Prisma.sql`AND "groupBindingId" = ${context.groupBindingId}` : Prisma.empty}
+      ${!context.groupBindingId && context.chatId ? Prisma.sql`AND "chatId" = ${context.chatId}` : Prisma.empty}
+    ORDER BY "createdAt" DESC
+    LIMIT 6
+  `);
+
+  for (const row of rows) {
+    const previousParse = parseExplicitReminderIntent(row.text, row.createdAt);
+
+    if (previousParse.kind === "clarify") {
+      return row;
+    }
+
+    if (previousParse.kind === "intent") {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+async function resolveReminderIntent(context: SourceKinEventTaskContext) {
+  const directParse = parseExplicitReminderIntent(context.text, context.createdAt);
+
+  if (directParse.kind !== "none") {
+    return directParse;
+  }
+
+  const continuationCandidate = await loadReminderContinuationCandidate(context);
+
+  if (!continuationCandidate?.text || !context.text) {
+    return directParse;
+  }
+
+  const combinedParse = parseExplicitReminderIntent(
+    `${continuationCandidate.text} ${context.text}`,
+    context.createdAt,
+  );
+
+  return combinedParse.kind === "intent" ? combinedParse : directParse;
+}
+
 export async function handleTelegramReminderFastPath(params: {
   sourceKinEventId: string;
 }): Promise<TelegramReminderFastPathResult> {
@@ -83,7 +145,7 @@ export async function handleTelegramReminderFastPath(params: {
     return { kind: "not_applicable" };
   }
 
-  const parseResult = parseExplicitReminderIntent(context.text, context.createdAt);
+  const parseResult = await resolveReminderIntent(context);
 
   if (parseResult.kind === "none") {
     return { kind: "not_applicable" };
