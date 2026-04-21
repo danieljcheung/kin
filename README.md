@@ -159,10 +159,22 @@ Expected env vars include:
 - `KIN_TELEGRAM_BOT_USERNAME` (optional, used for Telegram deep links)
 - `KIN_TELEGRAM_WEBHOOK_SECRET` (required for trusted Telegram binding completion callbacks)
 - `TELEGRAM_BOT_TOKEN` (required for Telegram webhook replies)
+- `KIN_REMINDER_SCHEDULER_ROLE_ARN` (optional, enables EventBridge Scheduler reminder scheduling when set with queue URL and region)
+- `KIN_REMINDER_SCHEDULER_GROUP_NAME` (optional, defaults to `default`)
+- `KIN_REMINDER_QUEUE_URL` (optional, SQS queue URL targeted by EventBridge Scheduler and polled by Kin)
+- `KIN_REMINDER_FIRE_SECRET` (optional but recommended for authenticated admin reminder routes:
+  `POST /api/reminders/process-queue` and legacy fallback `POST /api/reminders/fire`)
 - `OPENCLAW_TRANSPORT_MODE` (`local-cli`, `remote-gateway`, or `disabled`)
 - `OPENCLAW_GATEWAY_URL` (required for `remote-gateway` mode)
 - `OPENCLAW_GATEWAY_TOKEN` (required for `remote-gateway` mode)
 - `OPENCLAW_BIN` (optional override for the `openclaw` CLI binary)
+
+Reminder runtime note:
+- Primary flow is `EventBridge Scheduler -> SQS -> Kin consumer`.
+- Kin now exposes `POST /api/reminders/process-queue` to poll/process reminder messages from SQS.
+- Authenticate that route with the `x-kin-reminder-fire-secret` header set to `KIN_REMINDER_FIRE_SECRET`.
+- This route is intentionally minimal. In deployment, run it from a cron/worker trigger on a short cadence, or replace it with an always-on worker loop, so due reminders are continuously drained.
+- `POST /api/reminders/fire` remains as a legacy/manual fallback and is not required for the SQS path.
 
 ## Local dev
 

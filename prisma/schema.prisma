@@ -219,6 +219,9 @@ model Reminder {
   id               String               @id @default(cuid())
   status           ReminderStatus       @default(SCHEDULED)
   scheduledFor     DateTime
+  scheduleName     String?              @unique
+  scheduledBy      String?
+  canceledAt       DateTime?
   claimStatus      ReminderClaimStatus?
   claimedAt        DateTime?
   firedAt          DateTime?

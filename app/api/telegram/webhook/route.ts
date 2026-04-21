@@ -35,7 +35,28 @@ function extractStartToken(text: string): string | null {
   return parts.slice(1).join(" ");
 }
 
+function isValidWebhookSecret(req: NextRequest): boolean {
+  const configuredSecret = process.env.KIN_TELEGRAM_WEBHOOK_SECRET?.trim();
+
+  if (!configuredSecret) {
+    return true;
+  }
+
+  const telegramHeader = req.headers.get("x-telegram-bot-api-secret-token");
+  const kinHeader = req.headers.get("x-kin-telegram-secret");
+  const providedSecret = telegramHeader ?? kinHeader;
+
+  return providedSecret === configuredSecret;
+}
+
 export async function POST(req: NextRequest) {
+  if (!isValidWebhookSecret(req)) {
+    return NextResponse.json(
+      { ok: false, error: "unauthorized webhook request" },
+      { status: 401 },
+    );
+  }
+
   try {
     const body = await req.json();
     const event = normalizeTelegramUpdate(body);

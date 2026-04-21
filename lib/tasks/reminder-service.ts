@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 
+import { createReminderSchedule } from "@/lib/aws/reminder-scheduler";
 import { prisma } from "@/lib/prisma";
 import {
   type ExplicitReminderIntent,
@@ -20,6 +21,8 @@ export type TelegramReminderFastPathResult =
   | { kind: "clarify"; text: string }
   | { kind: "reply"; text: string }
   | { kind: "fallback"; reason: string };
+
+const REMINDER_SCHEDULED_BY = "eventbridge_scheduler_sqs";
 
 function buildReminderConfirmation(intent: ExplicitReminderIntent): string {
   return `Got it — I’ll remind everyone ${intent.scheduledForLabel}.`;
@@ -98,6 +101,7 @@ export async function handleTelegramReminderFastPath(params: {
   }
 
   const familyId = context.familyId;
+  let createdReminderId: string | null = null;
 
   try {
     const groupBindingId = await resolveGroupBindingId(context);
@@ -129,7 +133,7 @@ export async function handleTelegramReminderFastPath(params: {
         throw new Error("Task insert returned no id");
       }
 
-      await tx.$queryRaw(Prisma.sql`
+      const reminderRows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
         INSERT INTO "Reminder" (
           "taskId",
           "status",
@@ -146,8 +150,18 @@ export async function handleTelegramReminderFastPath(params: {
           ${groupBindingId},
           ${context.id}
         )
+        RETURNING "id"
       `);
+
+      const reminderId = reminderRows[0]?.id;
+
+      if (!reminderId) {
+        throw new Error("Reminder insert returned no id");
+      }
+
+      createdReminderId = reminderId;
     });
+
   } catch (error) {
     console.error("Failed to create reminder from Telegram fast-path", {
       sourceKinEventId: context.id,
@@ -160,6 +174,32 @@ export async function handleTelegramReminderFastPath(params: {
       kind: "fallback",
       reason: "reminder_write_failed",
     };
+  }
+
+  if (createdReminderId) {
+    try {
+      const scheduleResult = await createReminderSchedule({
+        reminderId: createdReminderId,
+        scheduledFor: parseResult.intent.scheduledFor,
+      });
+
+      if (scheduleResult.kind === "created" || scheduleResult.kind === "already_exists") {
+        await prisma.$executeRaw(Prisma.sql`
+          UPDATE "Reminder"
+          SET
+            "scheduleName" = ${scheduleResult.scheduleName},
+            "scheduledBy" = ${REMINDER_SCHEDULED_BY},
+            "canceledAt" = NULL
+          WHERE "id" = ${createdReminderId}
+        `);
+      }
+    } catch (error) {
+      console.error("Failed to create EventBridge reminder schedule", {
+        reminderId: createdReminderId,
+        sourceKinEventId: context.id,
+        error,
+      });
+    }
   }
 
   return {
