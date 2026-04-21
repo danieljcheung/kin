@@ -51,16 +51,40 @@ enum GroupBindingStatus {
   FAILED
 }
 
-model User {
-id String @id @default(cuid())
-cognitoSub String? @unique
-name String?
-email String @unique
-password String?
-role UserRole @default(OWNER)
-createdAt DateTime @default(now())
+enum TaskKind {
+  REMINDER
+  GROCERY_ITEM
+  LIST_ITEM
+  FOLLOW_UP
+}
 
-ownedFamilies Family[] @relation("FamilyOwner")
+enum TaskStatus {
+  OPEN
+  DONE
+  CANCELED
+}
+
+enum ReminderStatus {
+  SCHEDULED
+  FIRED
+  CANCELED
+  FAILED
+}
+
+enum ReminderClaimStatus {
+  CLAIMED
+}
+
+model User {
+  id         String   @id @default(cuid())
+  cognitoSub String?  @unique
+  name       String?
+  email      String   @unique
+  password   String?
+  role       UserRole @default(OWNER)
+  createdAt  DateTime @default(now())
+
+  ownedFamilies Family[] @relation("FamilyOwner")
 }
 
 model Family {
@@ -69,11 +93,13 @@ model Family {
   createdAt DateTime @default(now())
 
   ownerId String
-  owner   User @relation("FamilyOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  owner   User   @relation("FamilyOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
   assistant       Assistant?
   onboardingState OnboardingState?
   groupBindings   GroupBinding[]
+  tasks           Task[]
+  reminders       Reminder[]
 
   @@index([ownerId])
 }
@@ -101,53 +127,59 @@ model OnboardingState {
 }
 
 model GroupBinding {
-  id                 String             @id @default(cuid())
-  platform           MessagingPlatform  @default(TELEGRAM)
-  status             GroupBindingStatus @default(DM_STARTED)
-  groupName          String?
-  externalGroupId    String?            @unique
-  onboardingToken    String             @unique
-  botUsername        String?
+  id                  String             @id @default(cuid())
+  platform            MessagingPlatform  @default(TELEGRAM)
+  status              GroupBindingStatus @default(DM_STARTED)
+  groupName           String?
+  externalGroupId     String?            @unique
+  onboardingToken     String             @unique
+  botUsername         String?
   telegramDmUserId    String?
   telegramDmChatId    String?
   telegramDmUsername  String?
   telegramDmFirstName String?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  verifiedAt         DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  verifiedAt          DateTime?
 
   familyId String
   family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  tasks     Task[]
+  reminders Reminder[]
 
   @@index([familyId, status])
   @@index([telegramDmUserId, status])
 }
 
 model KinEvent {
-  id            String           @id @default(cuid())
-  platform      MessagingPlatform
-  category      KinEventCategory
-  dedupeKey     String           @unique
-  updateId      String?
-  kind          String
-  scope         String?
-  routeDecision String
-  routeReason   String
-  chatId        String?
-  chatType      String?
-  chatTitle     String?
-  fromUserId    String?
-  fromUsername  String?
-  fromFirstName String?
-  messageId     String?
-  text          String?
-  command       String?
-  oldStatus     String?
-  newStatus     String?
+  id             String            @id @default(cuid())
+  platform       MessagingPlatform
+  category       KinEventCategory
+  dedupeKey      String            @unique
+  updateId       String?
+  kind           String
+  scope          String?
+  routeDecision  String
+  routeReason    String
+  chatId         String?
+  chatType       String?
+  chatTitle      String?
+  fromUserId     String?
+  fromUsername   String?
+  fromFirstName  String?
+  messageId      String?
+  text           String?
+  command        String?
+  oldStatus      String?
+  newStatus      String?
   familyId       String?
   groupBindingId String?
   raw            Json
-  createdAt      DateTime         @default(now())
+  createdAt      DateTime          @default(now())
+
+  sourceTasks     Task[]     @relation("TaskSourceKinEvent")
+  sourceReminders Reminder[] @relation("ReminderSourceKinEvent")
 
   @@index([familyId, createdAt])
   @@index([familyId, category, createdAt])
@@ -156,4 +188,60 @@ model KinEvent {
   @@index([platform, category, createdAt])
   @@index([platform, chatId, createdAt])
   @@index([updateId])
+}
+
+model Task {
+  id        String     @id @default(cuid())
+  kind      TaskKind
+  status    TaskStatus @default(OPEN)
+  text      String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  familyId String
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  groupBindingId String?
+  groupBinding   GroupBinding? @relation(fields: [groupBindingId], references: [id], onDelete: SetNull)
+
+  sourceKinEventId String?
+  sourceKinEvent   KinEvent? @relation("TaskSourceKinEvent", fields: [sourceKinEventId], references: [id], onDelete: SetNull)
+
+  reminders Reminder[]
+
+  @@index([familyId, status, createdAt])
+  @@index([familyId, kind, createdAt])
+  @@index([groupBindingId, createdAt])
+  @@index([sourceKinEventId])
+}
+
+model Reminder {
+  id               String               @id @default(cuid())
+  status           ReminderStatus       @default(SCHEDULED)
+  scheduledFor     DateTime
+  claimStatus      ReminderClaimStatus?
+  claimedAt        DateTime?
+  firedAt          DateTime?
+  failedAt         DateTime?
+  lastError        String?
+  deliveryAttempts Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  familyId String
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  groupBindingId String?
+  groupBinding   GroupBinding? @relation(fields: [groupBindingId], references: [id], onDelete: SetNull)
+
+  sourceKinEventId String?
+  sourceKinEvent   KinEvent? @relation("ReminderSourceKinEvent", fields: [sourceKinEventId], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@index([familyId, status, scheduledFor])
+  @@index([groupBindingId, scheduledFor])
+  @@index([sourceKinEventId])
 }

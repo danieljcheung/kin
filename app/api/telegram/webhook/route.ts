@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { loadKinConversationContext } from "@/lib/kin/context";
+import { handleTelegramReminderFastPath } from "@/lib/tasks/reminder-service";
 import { classifyTelegramEvent } from "@/lib/telegram/classify";
 import { ingestTelegramEvent } from "@/lib/telegram/ingest";
 import { normalizeTelegramUpdate } from "@/lib/telegram/normalize";
 import { runOpenClawFastHandoff } from "@/lib/telegram/openclaw";
+import { sendTelegramMessage } from "@/lib/telegram/send";
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const KIN_TELEGRAM_BOT_USERNAME = process.env.KIN_TELEGRAM_BOT_USERNAME;
 const PENDING_BINDING_STATUSES = ["DM_STARTED", "BOT_ADDED"] as const;
 
@@ -16,49 +17,6 @@ export const runtime = "nodejs";
 interface PersistedKinEventContextRow {
   id: string;
   familyId: string | null;
-}
-
-async function sendTelegramMessage(
-  chatId: number | string,
-  text: string,
-  options?: {
-    replyToMessageId?: string | null;
-  },
-) {
-  if (!TELEGRAM_BOT_TOKEN) {
-    throw new Error("Missing TELEGRAM_BOT_TOKEN");
-  }
-
-  const replyToMessageId =
-    options?.replyToMessageId && /^\d+$/.test(options.replyToMessageId)
-      ? Number(options.replyToMessageId)
-      : undefined;
-
-  const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      ...(replyToMessageId
-        ? {
-            reply_parameters: {
-              message_id: replyToMessageId,
-            },
-          }
-        : {}),
-    }),
-  });
-
-  const data = await res.json();
-
-  if (!res.ok || !data.ok) {
-    throw new Error(`Telegram sendMessage failed: ${JSON.stringify(data)}`);
-  }
-
-  return data;
 }
 
 function extractStartToken(text: string): string | null {
@@ -121,6 +79,26 @@ export async function POST(req: NextRequest) {
       ingestionResult.eventId
     ) {
       try {
+        const reminderFastPathResult = await handleTelegramReminderFastPath({
+          sourceKinEventId: ingestionResult.eventId,
+        });
+
+        if (reminderFastPathResult.kind === "clarify" || reminderFastPathResult.kind === "reply") {
+          await sendTelegramMessage(event.chat.id, reminderFastPathResult.text, {
+            replyToMessageId: event.messageId,
+          });
+
+          return NextResponse.json({ ok: true });
+        }
+
+        if (reminderFastPathResult.kind === "fallback") {
+          console.warn("Reminder fast-path falling back to OpenClaw handoff", {
+            updateId: event.updateId,
+            eventId: ingestionResult.eventId,
+            reason: reminderFastPathResult.reason,
+          });
+        }
+
         const persistedRows = await prisma.$queryRaw<PersistedKinEventContextRow[]>(
           Prisma.sql`
             SELECT "id", "familyId"
