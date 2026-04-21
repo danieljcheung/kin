@@ -8,7 +8,8 @@ COPY package.json package-lock.json ./
 
 RUN npm install
 
-RUN npm install -g openclaw
+RUN npm install -g openclaw \
+  && ln -sf "$(npm config get prefix)/bin/openclaw" /usr/local/bin/openclaw
 
 COPY . .
 
