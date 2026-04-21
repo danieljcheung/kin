@@ -22,6 +22,12 @@ export interface TelegramMessageEntityRef {
   value: string | null;
 }
 
+export interface TelegramReplyMessageRef {
+  messageId: string | null;
+  text: string | null;
+  from: TelegramUserRef | null;
+}
+
 export interface TelegramMessageEvent {
   kind: "message";
   updateId: string | null;
@@ -32,6 +38,7 @@ export interface TelegramMessageEvent {
   messageId: string | null;
   command: string | null;
   entities: TelegramMessageEntityRef[];
+  replyToMessage: TelegramReplyMessageRef | null;
   raw: unknown;
 }
 
@@ -86,6 +93,7 @@ export type TelegramClassifierReason =
   | "assistant_name_intent"
   | "assistant_name_context"
   | "assistant_intent_without_mention"
+  | "assistant_reply_context"
   | "relevant_context"
   | "pure_chatter"
   | "default_ignore";
@@ -100,6 +108,7 @@ export interface TelegramClassifierSignals {
   hasAssistantIntent: boolean;
   looksLikePureChatter: boolean;
   looksRelevantButNotActionable: boolean;
+  isReplyToAssistantMessage: boolean;
   isOnboardingMembershipEvent: boolean;
 }
 

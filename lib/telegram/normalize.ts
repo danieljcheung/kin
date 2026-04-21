@@ -7,6 +7,7 @@ import type {
   TelegramChatRef,
   TelegramEventScope,
   TelegramMessageEntityRef,
+  TelegramReplyMessageRef,
   TelegramUserRef,
 } from "@/lib/telegram/types";
 
@@ -118,6 +119,20 @@ function normalizeEntities(value: unknown, text: string | null): TelegramMessage
   });
 }
 
+function normalizeReplyMessage(value: unknown): TelegramReplyMessageRef | null {
+  const message = asRecord(value);
+
+  if (!message) {
+    return null;
+  }
+
+  return {
+    messageId: asString(message.message_id),
+    text: asString(message.text),
+    from: normalizeUser(message.from),
+  };
+}
+
 function extractCommand(text: string | null): string | null {
   if (!text) {
     return null;
@@ -164,6 +179,7 @@ export function normalizeTelegramUpdate(raw: unknown): NormalizedTelegramEvent {
       messageId: asString(message.message_id),
       command: extractCommand(text),
       entities: normalizeEntities(message.entities, text),
+      replyToMessage: normalizeReplyMessage(message.reply_to_message),
       raw,
     };
   }

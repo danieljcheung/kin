@@ -45,6 +45,25 @@ function hasAssistantIntent(text: string): boolean {
   return TELEGRAM_ASSISTANT_INTENT_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+function isReplyToAssistantMessage(
+  event: Extract<NormalizedTelegramEvent, { kind: "message" }>,
+  botUsername?: string | null,
+): boolean {
+  const replyFrom = event.replyToMessage?.from;
+
+  if (!replyFrom?.isBot) {
+    return false;
+  }
+
+  const normalizedUsername = botUsername ? normalizeLookupValue(botUsername) : null;
+
+  if (!normalizedUsername) {
+    return true;
+  }
+
+  return normalizeLookupValue(replyFrom.username ?? "") === normalizedUsername;
+}
+
 function looksLikePureChatter(text: string): boolean {
   return TELEGRAM_PURE_CHATTER_PATTERNS.some((pattern) => pattern.test(text.trim()));
 }
@@ -80,6 +99,7 @@ export function classifyTelegramEvent(
         hasAssistantIntent: false,
         looksLikePureChatter: false,
         looksRelevantButNotActionable: false,
+        isReplyToAssistantMessage: false,
         isOnboardingMembershipEvent: false,
       },
     };
@@ -106,6 +126,7 @@ export function classifyTelegramEvent(
         hasAssistantIntent: false,
         looksLikePureChatter: false,
         looksRelevantButNotActionable: false,
+        isReplyToAssistantMessage: false,
         isOnboardingMembershipEvent,
       },
     };
@@ -118,6 +139,8 @@ export function classifyTelegramEvent(
   const hasIntent = text.length > 0 && hasAssistantIntent(text);
   const isPureChatter = text.length > 0 && looksLikePureChatter(text);
   const isRelevantContext = text.length > 0 && looksRelevantButNotActionable(text);
+  const isReplyContext =
+    event.scope === "group" && text.length > 0 && isReplyToAssistantMessage(event, options.botUsername);
 
   const signals = {
     hasText: text.length > 0,
@@ -129,6 +152,7 @@ export function classifyTelegramEvent(
     hasAssistantIntent: hasIntent,
     looksLikePureChatter: isPureChatter,
     looksRelevantButNotActionable: isRelevantContext,
+    isReplyToAssistantMessage: isReplyContext,
     isOnboardingMembershipEvent: false,
   };
 
@@ -172,14 +196,6 @@ export function classifyTelegramEvent(
     };
   }
 
-  if (isPureChatter && !hasIntent && !isRelevantContext) {
-    return {
-      decision: "ignore",
-      reason: "pure_chatter",
-      signals,
-    };
-  }
-
   if (isExplicitMention) {
     return {
       decision: "handoff_fast",
@@ -192,6 +208,14 @@ export function classifyTelegramEvent(
     return {
       decision: "handoff_fast",
       reason: hasIntent ? "assistant_name_intent" : "assistant_name_context",
+      signals,
+    };
+  }
+
+  if (signals.isReplyToAssistantMessage) {
+    return {
+      decision: "handoff_fast",
+      reason: "assistant_reply_context",
       signals,
     };
   }

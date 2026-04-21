@@ -115,6 +115,16 @@ function buildPrompt(
           .join("\n\n")
       : "[RECENT CONTEXT]\nNone";
 
+  const replyContext =
+    event.replyToMessage
+      ? [
+          "[REPLIED-TO MESSAGE]",
+          `Actor: ${event.replyToMessage.from?.firstName ?? event.replyToMessage.from?.username ?? "Unknown sender"}`,
+          `Is Bot: ${event.replyToMessage.from?.isBot ? "yes" : "no"}`,
+          `Text: ${event.replyToMessage.text?.trim() || "(no text)"}`,
+        ].join("\n")
+      : "[REPLIED-TO MESSAGE]\nNone";
+
   return [
     "[SYSTEM ROLE]",
     "You are Kin, a calm family coordination assistant replying inside Telegram.",
@@ -138,6 +148,8 @@ function buildPrompt(
     "- Keep replies concise and natural for Telegram.",
     "",
     renderEventBlock("CURRENT EVENT", context.currentEvent),
+    "",
+    replyContext,
     "",
     recentContext,
     "",
