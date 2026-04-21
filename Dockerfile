@@ -8,10 +8,7 @@ COPY package.json package-lock.json ./
 
 RUN npm install
 
-RUN npm install -g openclaw \
-  && OPENCLAW_ROOT="$(npm root -g)/openclaw" \
-  && printf '#!/bin/sh\nexec node %s/dist/index.js "$@"\n' "$OPENCLAW_ROOT" > /usr/local/bin/openclaw \
-  && chmod +x /usr/local/bin/openclaw
+RUN npm install -g openclaw@2026.4.15
 
 COPY . .
 
