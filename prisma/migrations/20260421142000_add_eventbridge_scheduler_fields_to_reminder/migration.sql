@@ -1,6 +1,6 @@
 ALTER TABLE "Reminder"
-  ADD COLUMN "scheduleName" TEXT,
-  ADD COLUMN "scheduledBy" TEXT,
-  ADD COLUMN "canceledAt" TIMESTAMP(3);
+  ADD COLUMN IF NOT EXISTS "scheduleName" TEXT,
+  ADD COLUMN IF NOT EXISTS "scheduledBy" TEXT,
+  ADD COLUMN IF NOT EXISTS "canceledAt" TIMESTAMP(3);
 
-CREATE UNIQUE INDEX "Reminder_scheduleName_key" ON "Reminder"("scheduleName");
+CREATE UNIQUE INDEX IF NOT EXISTS "Reminder_scheduleName_key" ON "Reminder"("scheduleName");
