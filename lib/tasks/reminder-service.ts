@@ -169,59 +169,31 @@ export async function handleTelegramReminderFastPath(params: {
     const groupBindingId = await resolveGroupBindingId(context);
 
     await prisma.$transaction(async (tx) => {
-      const taskRows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
-        INSERT INTO "Task" (
-          "kind",
-          "status",
-          "text",
-          "familyId",
-          "groupBindingId",
-          "sourceKinEventId"
-        )
-        VALUES (
-          'REMINDER'::"TaskKind",
-          'OPEN'::"TaskStatus",
-          ${parseResult.intent.taskText},
-          ${familyId},
-          ${groupBindingId},
-          ${context.id}
-        )
-        RETURNING "id"
-      `);
+      const task = await tx.task.create({
+        data: {
+          kind: "REMINDER",
+          status: "OPEN",
+          text: parseResult.intent.taskText,
+          familyId,
+          groupBindingId,
+          sourceKinEventId: context.id,
+        },
+        select: { id: true },
+      });
 
-      const taskId = taskRows[0]?.id;
+      const reminder = await tx.reminder.create({
+        data: {
+          taskId: task.id,
+          status: "SCHEDULED",
+          scheduledFor: parseResult.intent.scheduledFor,
+          familyId,
+          groupBindingId,
+          sourceKinEventId: context.id,
+        },
+        select: { id: true },
+      });
 
-      if (!taskId) {
-        throw new Error("Task insert returned no id");
-      }
-
-      const reminderRows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
-        INSERT INTO "Reminder" (
-          "taskId",
-          "status",
-          "scheduledFor",
-          "familyId",
-          "groupBindingId",
-          "sourceKinEventId"
-        )
-        VALUES (
-          ${taskId},
-          'SCHEDULED'::"ReminderStatus",
-          ${parseResult.intent.scheduledFor},
-          ${familyId},
-          ${groupBindingId},
-          ${context.id}
-        )
-        RETURNING "id"
-      `);
-
-      const reminderId = reminderRows[0]?.id;
-
-      if (!reminderId) {
-        throw new Error("Reminder insert returned no id");
-      }
-
-      createdReminderId = reminderId;
+      createdReminderId = reminder.id;
     });
 
   } catch (error) {
