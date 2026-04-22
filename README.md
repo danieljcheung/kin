@@ -36,7 +36,7 @@ The main architecture decision is that Kin is split into two services:
 - a **public Kin backend**,
 - and a **private OpenClaw service**.
 
-If I were explaining this in an interview, I would say it like this: Kin is the internet-facing layer, and OpenClaw is the private reasoning layer. Kin needs to be public because it serves the web app and receives Telegram webhooks. OpenClaw stays private because it handles internal reasoning and session logic.
+Kin is the internet-facing layer, and OpenClaw is the private reasoning layer. Kin needs to be public because it serves the web app and receives Telegram webhooks. OpenClaw stays private because it handles internal reasoning and session logic.
 
 ### Main pieces
 
@@ -65,7 +65,7 @@ If I were explaining this in an interview, I would say it like this: Kin is the 
   - Scheduler decides when a reminder should run
   - SQS holds reminder jobs until Kin processes them
 
-The reason I like this setup is that it makes the trust boundary very clear. Telegram and browser traffic only reach Kin. OpenClaw is not exposed directly.
+This setup makes the trust boundary very clear. Telegram and browser traffic only reach Kin. OpenClaw is not exposed directly.
 
 ### Trust boundaries
 
@@ -117,7 +117,7 @@ flowchart TB
 
 `POST /api/telegram/webhook` is the main runtime entrypoint.
 
-This is the runtime flow I would walk through in an interview:
+Runtime flow:
 1. Kin receives a Telegram webhook.
 2. Kin decides what kind of event it is.
 3. Kin stores the event in Postgres.
@@ -161,7 +161,7 @@ The reminder path works like this:
 - Scheduler pushes the job into SQS.
 - Kin later processes the queue and sends the reminder back to Telegram.
 
-This is a good example of how I tried to keep the system decoupled. Scheduling and delivery are related, but they are not tightly tied together in one synchronous request.
+This keeps scheduling and delivery decoupled instead of tying both steps to one synchronous request.
 
 Main routes:
 - `POST /api/reminders/process-queue`
@@ -248,7 +248,7 @@ docker compose build --no-cache
 docker compose up -d
 ```
 
-If I were presenting it out loud, I would describe Docker as the layer that made deployment repeatable. Instead of treating the EC2 box like a snowflake server, I packaged the app so the runtime was predictable.
+Docker makes deployment more repeatable and keeps the runtime more predictable on EC2.
 
 ### Main environment variables
 Core runtime:
@@ -304,4 +304,4 @@ Kin is a working MVP with a clear system design:
 - a private OpenClaw runtime,
 - and AWS-based reminder scheduling.
 
-The part I would emphasize in an interview is that the architecture already reflects the final shape of the product: a public orchestration layer, a private reasoning layer, and asynchronous infrastructure for reminders. The next step is making it more robust, easier to operate, and easier to scale.
+The next step is making it more robust, easier to operate, and easier to scale.
