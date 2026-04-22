@@ -31,26 +31,86 @@ flowchart LR
   F --> G[Runtime: ingest, classify, reply]
 ```
 
-## 2) System architecture overview
+## 2) AWS deployment topology (interview-friendly)
 
-- **Kin (Next.js app + API routes)** is the public orchestration layer.
-- **Postgres + Prisma** stores households, bindings, events, tasks, reminders.
-- **Telegram Bot API** is the inbound/outbound messaging channel.
-- **OpenClaw** is the reasoning layer for fast conversational handoff.
-- **AWS EventBridge Scheduler + SQS** powers reminder delivery.
+Kin is intentionally split into:
+- a **public Kin backend** that handles all internet-facing traffic,
+- and a **private OpenClaw runtime** that handles internal reasoning.
+
+This lets Telegram traffic enter safely while keeping the reasoning system off the public internet.
+
+### Why each AWS component exists
+
+- **Public ALB + Kin service (EC2-hosted app)**
+  - Terminates public HTTPS and receives Telegram webhook traffic.
+  - Hosts Kin API routes and onboarding web surfaces.
+
+- **VPC with private subnets**
+  - Keeps internal services unreachable from the internet by default.
+  - Separates public entrypoints from internal reasoning and queue consumers.
+
+- **Internal ALB for OpenClaw**
+  - Exposes OpenClaw only inside the VPC.
+  - Kin calls OpenClaw over private networking, never through public endpoints.
+
+- **Route53 private DNS (internal domain)**
+  - Gives Kin a stable internal hostname (for example `openclaw.internal`).
+  - Decouples service discovery from EC2 instance IP changes.
+
+- **ACM certificates**
+  - Used for TLS on both public and internal load balancers.
+  - Keeps Kin -> OpenClaw calls encrypted in transit.
+
+- **EventBridge Scheduler + SQS reminder queue**
+  - Scheduler triggers reminder delivery at the right time.
+  - SQS absorbs retries/spikes and decouples scheduling from send execution.
+
+### Trust boundaries
+
+- **Public boundary:** Telegram and browser traffic reach only Kin’s public API surface.
+- **Private boundary:** OpenClaw stays internal, reachable only from trusted Kin-side components.
+- **Design intent:** user-visible messaging remains fast and simple, while reasoning and orchestration stay isolated.
 
 ```mermaid
 flowchart TB
-  TG[Telegram Bot API] -->|webhook| KIN[Kin API routes]
-  KIN --> DB[(Postgres via Prisma)]
-  KIN --> OC[OpenClaw transport]
-  KIN --> SCH[EventBridge Scheduler]
-  SCH --> Q[SQS reminder queue]
+  subgraph Internet
+    TG[Telegram Bot API]
+    WEB[User browser]
+  end
+
+  subgraph AWS[VPC]
+    PUBALB[Public ALB]
+
+    subgraph PublicTier[Public subnet / Kin tier]
+      KIN[Kin backend on EC2]
+    end
+
+    subgraph PrivateTier[Private subnets]
+      IALB[Internal ALB]
+      OC[OpenClaw service on EC2]
+      R53[Route53 private DNS]
+      SCH[EventBridge Scheduler]
+      Q[SQS reminder queue]
+      DB[(Postgres)]
+    end
+  end
+
+  WEB -->|HTTPS| PUBALB
+  TG -->|Webhook HTTPS| PUBALB
+  PUBALB --> KIN
+
+  KIN --> DB
+  KIN -->|HTTPS via private DNS| R53
+  R53 --> IALB
+  IALB --> OC
+
+  KIN --> SCH
+  SCH --> Q
   Q --> KIN
-  KIN -->|send message| TG
+  KIN --> TG
 ```
 
-## 3) Request/runtime flow (Telegram)
+## 3) Runtime flow: Telegram entry vs private reasoning
 
 `POST /api/telegram/webhook` is the main runtime entrypoint.
 
@@ -62,25 +122,25 @@ High-level behavior:
 5. For `handoff_fast`:
    - try reminder fast-path first,
    - otherwise build conversation context,
-   - call OpenClaw,
+   - call OpenClaw over private/internal network,
    - send reply for `reply` or `clarify`.
 
 ```mermaid
 sequenceDiagram
-  participant T as Telegram
-  participant K as Kin /api/telegram/webhook
-  participant P as Postgres
-  participant O as OpenClaw
+  participant T as Telegram (public)
+  participant K as Kin webhook (public backend)
+  participant P as Postgres (private)
+  participant O as OpenClaw (private)
 
-  T->>K: update
+  T->>K: webhook update
   K->>K: normalize + classify
-  K->>P: ingest KinEvent (dedupe, scope)
+  K->>P: ingest KinEvent
   alt reminder fast-path
     K->>P: create Task + Reminder
     K->>T: confirmation reply
   else conversational handoff
-    K->>P: load context
-    K->>O: fast handoff
+    K->>P: load family context
+    K->>O: internal handoff request
     O-->>K: no_reply | reply | clarify
     opt reply/clarify
       K->>T: send message
@@ -88,7 +148,7 @@ sequenceDiagram
   end
 ```
 
-## 4) Reminders architecture and delivery flow
+## 4) Reminder delivery architecture
 
 Kin supports explicit reminder intent from Telegram messages.
 
@@ -102,11 +162,11 @@ Kin supports explicit reminder intent from Telegram messages.
 
 ```mermaid
 flowchart LR
-  M[Telegram message] --> W[Webhook ingest]
+  M[Telegram message] --> W[Kin webhook]
   W --> R[Reminder intent parser]
   R -->|intent found| D[(Task + Reminder rows)]
   D --> S[EventBridge Scheduler]
-  S --> Q[SQS]
+  S --> Q[SQS reminder queue]
   Q --> C[/api/reminders/process-queue]
   C --> X[Deliver Telegram reminder]
 ```
@@ -135,7 +195,7 @@ Key statuses in active use:
 - Telegram event normalization/classification/ingestion with dedupe.
 - Family/group context loading for runtime decisions.
 - Fast OpenClaw handoff contract integration.
-- Reminder creation path with scheduler + queue processing hooks.
+- Reminder creation path with Scheduler + SQS processing hooks.
 
 ### Still MVP / needs hardening
 - OpenClaw transport currently uses `openclaw` CLI as client wrapper.
@@ -232,4 +292,4 @@ Reminders:
 
 Kin is already a credible end-to-end MVP for Telegram household coordination.
 
-The project’s current strength is a working product flow with sensible architectural direction. The next phase is production hardening, clearer service boundaries, and operational depth.
+The project’s current strength is a working product flow with sensible architectural direction, especially clear public/private boundaries for AWS deployment. The next phase is production hardening and operational depth.
