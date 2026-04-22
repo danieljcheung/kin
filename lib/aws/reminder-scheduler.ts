@@ -79,7 +79,7 @@ export function buildReminderScheduleName(reminderId: string): string {
 }
 
 function formatAtExpression(date: Date): string {
-  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+  return date.toISOString().replace(/\.\d{3}Z$/, "");
 }
 
 const schedulerClientsByRegion = new Map<string, SchedulerClient>();
