@@ -30,6 +30,19 @@ export type TelegramReminderFastPathResult =
 
 const REMINDER_SCHEDULED_BY = "eventbridge_scheduler_sqs";
 
+function resolveReminderTimeZone(): string {
+  const configured = process.env.KIN_REMINDER_TIMEZONE?.trim();
+  if (!configured) {
+    return "UTC";
+  }
+
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: configured }).resolvedOptions().timeZone;
+  } catch {
+    return "UTC";
+  }
+}
+
 function buildReminderConfirmation(intent: ExplicitReminderIntent): string {
   return `Got it — I’ll remind everyone ${intent.scheduledForLabel}.`;
 }
@@ -116,7 +129,8 @@ async function loadReminderContinuationCandidate(
 }
 
 async function resolveReminderIntent(context: SourceKinEventTaskContext) {
-  const directParse = parseExplicitReminderIntent(context.text, context.createdAt);
+  const timeZone = resolveReminderTimeZone();
+  const directParse = parseExplicitReminderIntent(context.text, context.createdAt, { timeZone });
 
   if (directParse.kind !== "none") {
     return directParse;
@@ -131,6 +145,7 @@ async function resolveReminderIntent(context: SourceKinEventTaskContext) {
   const combinedParse = parseExplicitReminderIntent(
     `${continuationCandidate.text} ${context.text}`,
     context.createdAt,
+    { timeZone },
   );
 
   return combinedParse.kind === "intent" ? combinedParse : directParse;

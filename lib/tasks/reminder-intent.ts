@@ -9,43 +9,128 @@ export type ExplicitReminderIntentParseResult =
   | { kind: "clarify"; text: string }
   | { kind: "intent"; intent: ExplicitReminderIntent };
 
+interface ParseReminderIntentOptions {
+  timeZone?: string;
+}
+
 const REMINDER_ASK_PATTERN = /\b(remind(?:er)?|set\s+(?:a\s+)?reminder)\b/i;
 const AMBIGUOUS_TIME_PATTERN = /\b(later|soon|sometime|whenever|tonight|morning|afternoon|evening)\b/i;
 
-function parseDateToken(text: string, now: Date): { date: Date; label: string } | null {
+function getDatePartsInTimeZone(date: Date, timeZone: string): { year: number; month: number; day: number } {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  const parts = formatter.formatToParts(date);
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  const day = Number(parts.find((part) => part.type === "day")?.value);
+
+  return { year, month, day };
+}
+
+function addDaysToDateParts(
+  dateParts: { year: number; month: number; day: number },
+  daysToAdd: number,
+): { year: number; month: number; day: number } {
+  const date = new Date(Date.UTC(dateParts.year, dateParts.month - 1, dateParts.day + daysToAdd));
+
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+}
+
+function getTimeZoneOffsetMs(date: Date, timeZone: string): number {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  const day = Number(parts.find((part) => part.type === "day")?.value);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value);
+  const second = Number(parts.find((part) => part.type === "second")?.value);
+
+  const asIfUtc = Date.UTC(year, month - 1, day, hour, minute, second);
+  return asIfUtc - date.getTime();
+}
+
+function dateFromTimeZoneComponents(params: {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  timeZone: string;
+}): Date {
+  const { year, month, day, hour, minute, timeZone } = params;
+  const localAsIfUtc = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  const firstGuess = new Date(localAsIfUtc - getTimeZoneOffsetMs(new Date(localAsIfUtc), timeZone));
+  const refinedTime = localAsIfUtc - getTimeZoneOffsetMs(firstGuess, timeZone);
+  return new Date(refinedTime);
+}
+
+function parseDateToken(
+  text: string,
+  now: Date,
+  timeZone: string,
+): { year: number; month: number; day: number; label: string } | null {
   const lowered = text.toLowerCase();
+  const nowParts = getDatePartsInTimeZone(now, timeZone);
 
   if (lowered.includes("tomorrow")) {
-    const date = new Date(now);
-    date.setDate(date.getDate() + 1);
-    return { date, label: "tomorrow" };
+    return {
+      ...addDaysToDateParts(nowParts, 1),
+      label: "tomorrow",
+    };
   }
 
   if (lowered.includes("today")) {
-    return { date: new Date(now), label: "today" };
+    return {
+      ...nowParts,
+      label: "today",
+    };
   }
 
   const isoMatch = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
   if (isoMatch) {
     const year = Number(isoMatch[1]);
-    const month = Number(isoMatch[2]) - 1;
+    const month = Number(isoMatch[2]);
     const day = Number(isoMatch[3]);
     return {
-      date: new Date(year, month, day),
+      year,
+      month,
+      day,
       label: `on ${isoMatch[0]}`,
     };
   }
 
   const slashMatch = text.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
   if (slashMatch) {
-    const month = Number(slashMatch[1]) - 1;
+    const month = Number(slashMatch[1]);
     const day = Number(slashMatch[2]);
-    const currentYear = now.getFullYear();
+    const currentYear = nowParts.year;
     const parsedYear = slashMatch[3] ? Number(slashMatch[3]) : currentYear;
     const year = parsedYear < 100 ? 2000 + parsedYear : parsedYear;
 
     return {
-      date: new Date(year, month, day),
+      year,
+      month,
+      day,
       label: `on ${slashMatch[0]}`,
     };
   }
@@ -99,17 +184,33 @@ function sanitizeTaskText(rawText: string): string {
     .trim();
 }
 
-function formatTimeLabel(date: Date): string {
+function formatTimeLabel(date: Date, timeZone: string): string {
   return date.toLocaleTimeString("en-US", {
+    timeZone,
     hour: "numeric",
     minute: "2-digit",
   });
 }
 
+function normalizeTimeZone(rawTimeZone: string | undefined): string {
+  if (!rawTimeZone) {
+    return "UTC";
+  }
+
+  try {
+    const resolved = new Intl.DateTimeFormat("en-US", { timeZone: rawTimeZone }).resolvedOptions().timeZone;
+    return resolved;
+  } catch {
+    return "UTC";
+  }
+}
+
 export function parseExplicitReminderIntent(
   text: string | null | undefined,
   now: Date,
+  options?: ParseReminderIntentOptions,
 ): ExplicitReminderIntentParseResult {
+  const timeZone = normalizeTimeZone(options?.timeZone);
   const trimmed = text?.trim();
 
   if (!trimmed || !REMINDER_ASK_PATTERN.test(trimmed)) {
@@ -123,7 +224,7 @@ export function parseExplicitReminderIntent(
     };
   }
 
-  const dateToken = parseDateToken(trimmed, now);
+  const dateToken = parseDateToken(trimmed, now, timeZone);
   const timeToken = parseTimeToken(trimmed);
 
   if (!dateToken || !timeToken) {
@@ -142,8 +243,14 @@ export function parseExplicitReminderIntent(
     };
   }
 
-  const scheduledFor = new Date(dateToken.date);
-  scheduledFor.setHours(timeToken.hour, timeToken.minute, 0, 0);
+  const scheduledFor = dateFromTimeZoneComponents({
+    year: dateToken.year,
+    month: dateToken.month,
+    day: dateToken.day,
+    hour: timeToken.hour,
+    minute: timeToken.minute,
+    timeZone,
+  });
 
   if (Number.isNaN(scheduledFor.getTime())) {
     return {
@@ -157,7 +264,7 @@ export function parseExplicitReminderIntent(
     intent: {
       taskText,
       scheduledFor,
-      scheduledForLabel: `${dateToken.label} at ${formatTimeLabel(scheduledFor)}`,
+      scheduledForLabel: `${dateToken.label} at ${formatTimeLabel(scheduledFor, timeZone)}`,
     },
   };
 }
