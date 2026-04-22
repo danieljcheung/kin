@@ -1,201 +1,235 @@
 # Kin
 
-Kin is a Telegram-first family assistant for household group chats.
+Kin is a Telegram-first family coordination assistant.
 
-## Current status
+It combines:
+- a web onboarding shell (account + household setup),
+- a Telegram group runtime (event ingestion and assistant replies),
+- and a reminder pipeline (intent parsing, scheduling, and delivery).
 
-Kin is now at a usable Telegram-first onboarding + message-routing milestone.
+The current repo is an MVP with a working end-to-end happy path and clear boundaries for what is already reliable vs what still needs hardening.
 
-- End-to-end onboarding works for the MVP flow:
-  - signup / verify
-  - household creation
-  - Telegram connect step with deep link + QR
-  - `/start <token>` DM linking
-  - Telegram group activation
-  - onboarding completion
-  - duplicate-group protection
-- Step 1 runtime starter exists:
-  - Telegram normalize/classify/router layer
-- Step 2 exists:
-  - `KinEvent` ingestion pipeline
-  - categorization
-  - dedupe
-  - `familyId` / `groupBindingId` scoping
-- Step 3 exists:
-  - fast OpenClaw handoff path
-  - conversation context loader
-  - `reply` / `no_reply` / `clarify` response contract
-  - transport refactor away from local-only assumptions
-  - remote-gateway transport mode using gateway URL + token
+## 1) Product concept and user flow
 
-This is still an MVP. The happy path is implemented and the core runtime pieces are in place, but the system is not fully production-hardened yet.
+Kin is designed around a **shared household group**, not isolated one-on-one sessions.
 
-## What Kin is
+Typical flow:
+1. Owner completes setup on the web.
+2. Kin creates `User`, `Family`, `Assistant`, `OnboardingState`, and a pending `GroupBinding`.
+3. Owner opens a Telegram DM deep link (`/start <token>`).
+4. Owner adds the bot to the household group.
+5. Kin activates the binding and marks onboarding complete.
+6. New group messages are classified, stored as `KinEvent`, and optionally answered.
 
-Kin is the backend and product shell for a family assistant that lives in a shared Telegram household group.
+```mermaid
+flowchart LR
+  A[Web setup] --> B[Create Family + Assistant + pending GroupBinding]
+  B --> C[Telegram DM: /start token]
+  C --> D[Link owner Telegram user]
+  D --> E[Add bot to household group]
+  E --> F[GroupBinding ACTIVE]
+  F --> G[Runtime: ingest, classify, reply]
+```
 
-The product model is:
+## 2) System architecture overview
 
-- onboarding starts on the web
-- account + household are created in Kin
-- the owner connects Kin to Telegram through a DM deep link
-- the owner adds the shared Kin bot to the household group
-- Kin binds that group to the household
-- new Telegram events are normalized, classified, stored, and optionally handed off to OpenClaw for a fast reply
+- **Kin (Next.js app + API routes)** is the public orchestration layer.
+- **Postgres + Prisma** stores households, bindings, events, tasks, reminders.
+- **Telegram Bot API** is the inbound/outbound messaging channel.
+- **OpenClaw** is the reasoning layer for fast conversational handoff.
+- **AWS EventBridge Scheduler + SQS** powers reminder delivery.
 
-The important product choice in this MVP is that Kin is group-first, not per-user chat-session-first. The main channel object is the household Telegram group binding.
+```mermaid
+flowchart TB
+  TG[Telegram Bot API] -->|webhook| KIN[Kin API routes]
+  KIN --> DB[(Postgres via Prisma)]
+  KIN --> OC[OpenClaw transport]
+  KIN --> SCH[EventBridge Scheduler]
+  SCH --> Q[SQS reminder queue]
+  Q --> KIN
+  KIN -->|send message| TG
+```
 
-## MVP backend model
+## 3) Request/runtime flow (Telegram)
 
-- One `Family` = one household account
-- One owner/admin `User` per family in v1
-- One `Assistant` provisioned per family
-- One shared Kin Telegram bot for the whole product
-- One `GroupBinding` per household Telegram group
-- One `OnboardingState` that moves setup into Telegram group binding
+`POST /api/telegram/webhook` is the main runtime entrypoint.
 
-This MVP does **not** use a per-family WhatsApp-style login/session model. The core channel object is the Telegram group binding.
+High-level behavior:
+1. Validate webhook secret.
+2. Normalize raw Telegram update.
+3. Classify route (`ignore`, `ingest_only`, `onboarding_event`, `handoff_fast`).
+4. Ingest non-ignored event to `KinEvent` with dedupe + family/group scoping.
+5. For `handoff_fast`:
+   - try reminder fast-path first,
+   - otherwise build conversation context,
+   - call OpenClaw,
+   - send reply for `reply` or `clarify`.
 
-## What was finished today
+```mermaid
+sequenceDiagram
+  participant T as Telegram
+  participant K as Kin /api/telegram/webhook
+  participant P as Postgres
+  participant O as OpenClaw
 
-### Onboarding
+  T->>K: update
+  K->>K: normalize + classify
+  K->>P: ingest KinEvent (dedupe, scope)
+  alt reminder fast-path
+    K->>P: create Task + Reminder
+    K->>T: confirmation reply
+  else conversational handoff
+    K->>P: load context
+    K->>O: fast handoff
+    O-->>K: no_reply | reply | clarify
+    opt reply/clarify
+      K->>T: send message
+    end
+  end
+```
 
-- Wired the Telegram-first onboarding MVP end to end.
-- Confirmed the DM deep link / QR flow works.
-- Confirmed `/start <token>` in a direct message links the Telegram user to the pending household binding.
-- Confirmed group activation completes onboarding.
-- Added duplicate-group protection so one Telegram group cannot be bound to multiple families.
+## 4) Reminders architecture and delivery flow
 
-### Runtime steps
+Kin supports explicit reminder intent from Telegram messages.
 
-- Locked in Step 1 as the Telegram normalize/classify/router entry layer.
-- Added Step 2 event ingestion through `KinEvent`, including categorization, dedupe, and household/group scoping.
-- Added Step 3 fast OpenClaw handoff with context loading and a strict `reply` / `no_reply` / `clarify` output contract.
-- Refactored the OpenClaw transport so Kin is no longer forced into a local-only assumption.
-- Added remote gateway transport mode driven by `OPENCLAW_GATEWAY_URL` and `OPENCLAW_GATEWAY_TOKEN`.
+- Reminder intent is parsed from `KinEvent` text (with continuation support).
+- On success, Kin creates:
+  - `Task(kind=REMINDER)`
+  - `Reminder(status=SCHEDULED)`
+- Kin schedules delivery through EventBridge Scheduler targeting SQS.
+- Queue processing route: `POST /api/reminders/process-queue`
+- Legacy/manual fallback route: `POST /api/reminders/fire`
 
-### Production architecture
+```mermaid
+flowchart LR
+  M[Telegram message] --> W[Webhook ingest]
+  W --> R[Reminder intent parser]
+  R -->|intent found| D[(Task + Reminder rows)]
+  D --> S[EventBridge Scheduler]
+  S --> Q[SQS]
+  Q --> C[/api/reminders/process-queue]
+  C --> X[Deliver Telegram reminder]
+```
 
-The production split is now intentionally defined:
+## 5) Data model (MVP)
 
-- Kin backend = public orchestration service
-- OpenClaw = private internal reasoning/session service
-- both run inside the same AWS private environment / VPC
-- Kin reaches OpenClaw through secure internal transport:
-  - internal ALB
-  - Route53 private hosted zone
-  - ACM certificate
-  - WSS endpoint
-  - gateway token
+Core entities:
+- `Family` (household)
+- `User` (owner in v1)
+- `Assistant` (runtime association)
+- `OnboardingState`
+- `GroupBinding` (Telegram binding lifecycle)
+- `KinEvent` (normalized event log)
+- `Task` + `Reminder`
 
-### AWS setup completed tonight
+Key statuses in active use:
+- `GroupBinding`: `DM_STARTED -> BOT_ADDED -> ACTIVE`
+- `OnboardingState`: pending/in-progress to `COMPLETE`
+- OpenClaw response contract: `no_reply | reply | clarify`
 
-- private hosted zone: `internal.getkin.ca`
-- ACM certificate for `openclaw.internal.getkin.ca`
-- internal ALB
-- private subnets `a` / `b` / `c`
-- healthy target group
-- secure gateway health check verified through `wss://openclaw.internal.getkin.ca`
+## 6) Current status: production-ready vs MVP
 
-## Current backend flow
+### Working and reliable in current scope
+- End-to-end Telegram-first onboarding happy path.
+- Group activation and duplicate-group protection.
+- Telegram event normalization/classification/ingestion with dedupe.
+- Family/group context loading for runtime decisions.
+- Fast OpenClaw handoff contract integration.
+- Reminder creation path with scheduler + queue processing hooks.
 
-`POST /api/setup`
-- validates owner + family setup input
-- creates the owner user, family, assistant, onboarding state, and pending Telegram binding in one transaction
-- returns the Telegram binding bootstrap payload and deep link when `KIN_TELEGRAM_BOT_USERNAME` is set
+### Still MVP / needs hardening
+- OpenClaw transport currently uses `openclaw` CLI as client wrapper.
+- Webhook path still combines onboarding, ingest, and handoff concerns.
+- Operational resilience needs deeper retries/backoff/runbook coverage.
+- Auth/session protections should be tightened before broad exposure.
+- Observability is present but still light for production incident handling.
 
-`POST /api/telegram/bindings/bootstrap`
-- resumes the Telegram group-binding step using the `bindingId` and `onboardingToken` returned from setup
+## 7) Local development
 
-`POST /api/telegram/bindings/complete`
-- accepts a trusted Telegram bot/backend callback
-- validates `x-kin-telegram-secret` against `KIN_TELEGRAM_WEBHOOK_SECRET`
-- looks up the pending binding by `onboardingToken`
-- rejects Telegram groups already bound to another family
-- moves a binding through `DM_STARTED` -> `BOT_ADDED` -> `ACTIVE`
-- marks onboarding `COMPLETE` when the binding is confirmed
-- safely returns idempotent success for repeated completion requests on the same active binding
+### Stack
+- Next.js 16 (App Router)
+- TypeScript
+- Prisma + PostgreSQL
+- Telegram Bot API
+- Optional OpenClaw gateway transport
+- Optional AWS Scheduler/SQS for reminders
 
-`POST /api/telegram/webhook`
-- normalizes raw Telegram updates into a small internal event shape
-- classifies each update as `ignore`, `ingest_only`, `onboarding_event`, or `handoff_fast`
-- persists non-ignored updates into `KinEvent`
-- scopes persisted events to `familyId` / `groupBindingId` when context can be resolved
-- deduplicates repeated Telegram deliveries using a stable dedupe key
-- handles onboarding DM + group activation events
-- sends fast-handoff candidate messages to OpenClaw and posts a Telegram reply when the result is `reply` or `clarify`
-
-## Current architecture
-
-At the moment, the runtime looks like this:
-
-1. Kin receives a Telegram webhook update.
-2. Kin normalizes and classifies the update.
-3. Kin ingests the event into `KinEvent`, with dedupe and household/group scoping.
-4. If the classifier says `handoff_fast`, Kin loads recent family/group context for that event.
-5. Kin calls OpenClaw over the configured transport.
-6. OpenClaw returns one of `no_reply`, `reply`, or `clarify`.
-7. Kin sends the reply back into Telegram when appropriate.
-
-The intended deployment architecture is:
-
-- Kin is the public-facing service.
-- OpenClaw is internal-only.
-- Transport between them is private and authenticated.
-- Session continuity is keyed by family via a stable session label.
-
-## Important caveats
-
-- Step 3 is real, but it is still thin. The Kin backend currently uses the `openclaw` CLI as the gateway client wrapper, even in `remote-gateway` mode. That means Kin is not yet speaking directly to the internal gateway over its own native client implementation.
-- The remote gateway path is designed for production, but production hardening is still in progress around deployment, observability, retries, and failure handling.
-- The webhook route currently mixes onboarding handling, event ingestion, and fast handoff in one path. That is acceptable for the MVP, but it is not the final separation of concerns.
-- Current auth/session protection for the public web product is still minimal and should be tightened before wider exposure.
-- The README reflects the backend and runtime state in this repo. It does not claim that every operational piece is fully automated or fully deployed.
-
-## Environment
-
-Expected env vars include:
-- `DATABASE_URL`
-- `KIN_TELEGRAM_BOT_USERNAME` (optional, used for Telegram deep links)
-- `KIN_TELEGRAM_WEBHOOK_SECRET` (required for trusted Telegram binding completion callbacks)
-- `TELEGRAM_BOT_TOKEN` (required for Telegram webhook replies)
-- `KIN_REMINDER_SCHEDULER_ROLE_ARN` (optional, enables EventBridge Scheduler reminder scheduling when set with queue URL and region)
-- `KIN_REMINDER_SCHEDULER_GROUP_NAME` (optional, defaults to `default`)
-- `KIN_REMINDER_QUEUE_URL` (optional, SQS queue URL targeted by EventBridge Scheduler and polled by Kin)
-- `KIN_REMINDER_FIRE_SECRET` (optional but recommended for authenticated admin reminder routes:
-  `POST /api/reminders/process-queue` and legacy fallback `POST /api/reminders/fire`)
-- `OPENCLAW_TRANSPORT_MODE` (`local-cli`, `remote-gateway`, or `disabled`)
-- `OPENCLAW_GATEWAY_URL` (required for `remote-gateway` mode)
-- `OPENCLAW_GATEWAY_TOKEN` (required for `remote-gateway` mode)
-- `OPENCLAW_BIN` (optional override for the `openclaw` CLI binary)
-
-Reminder runtime note:
-- Primary flow is `EventBridge Scheduler -> SQS -> Kin consumer`.
-- Kin now exposes `POST /api/reminders/process-queue` to poll/process reminder messages from SQS.
-- Authenticate that route with the `x-kin-reminder-fire-secret` header set to `KIN_REMINDER_FIRE_SECRET`.
-- This route is intentionally minimal. In deployment, run it from a cron/worker trigger on a short cadence, or replace it with an always-on worker loop, so due reminders are continuously drained.
-- `POST /api/reminders/fire` remains as a legacy/manual fallback and is not required for the SQS path.
-
-## Local dev
-
+### Quick start
 ```bash
 npm install
 npm run dev
 ```
 
-If Prisma client or schema changes are pending:
-
+If schema/client updates are needed:
 ```bash
 npx prisma generate
 npx prisma migrate dev
 ```
 
-## Next roadmap
+### Environment summary
+Minimal required for core runtime:
+- `DATABASE_URL`
+- `TELEGRAM_BOT_TOKEN`
+- `KIN_TELEGRAM_WEBHOOK_SECRET` (recommended/expected for trusted callbacks)
+- `OPENCLAW_TRANSPORT_MODE` (`local-cli`, `remote-gateway`, `disabled`)
 
-- harden the production webhook + gateway deployment path end to end
-- reduce operational dependence on the OpenClaw CLI wrapper from the Kin host
-- separate the Telegram webhook orchestration path into cleaner runtime boundaries as the system grows
-- improve auth/session protection before broader public exposure
-- add better observability around ingestion, handoff failures, reply decisions, and duplicate suppression
-- add tests around onboarding edge cases, transport failures, and event classification behavior
-- decide whether the `DM_STARTED` -> `BOT_ADDED` -> `ACTIVE` lifecycle should stay explicit or be simplified later
+For remote OpenClaw gateway mode:
+- `OPENCLAW_GATEWAY_URL`
+- `OPENCLAW_GATEWAY_TOKEN`
+- `OPENCLAW_BIN` (optional override, default `openclaw`)
+
+For reminder scheduling/queue flow:
+- `KIN_REMINDER_SCHEDULER_ROLE_ARN`
+- `KIN_REMINDER_QUEUE_URL`
+- `KIN_REMINDER_SCHEDULER_GROUP_NAME` (optional)
+- `KIN_REMINDER_FIRE_SECRET` (for authenticated admin reminder routes)
+
+Also used by onboarding UX:
+- `KIN_TELEGRAM_BOT_USERNAME`
+
+See `.env.example` for a full reference set.
+
+## 8) API surfaces (current)
+
+Onboarding and setup:
+- `POST /api/setup`
+- `POST /api/telegram/bindings/bootstrap`
+- `POST /api/telegram/bindings/complete`
+- `POST /api/telegram/bindings/status`
+
+Runtime:
+- `POST /api/telegram/webhook`
+
+Reminders:
+- `POST /api/reminders/process-queue`
+- `POST /api/reminders/process-due`
+- `POST /api/reminders/fire` (legacy/manual fallback)
+
+## 9) Roadmap (practical next steps)
+
+1. **Transport maturity**
+   - move from CLI-wrapper dependency toward a direct gateway client path
+   - tighten timeout/retry semantics and failure classification
+
+2. **Runtime separation**
+   - split webhook orchestration into cleaner modules/workers
+   - keep onboarding and conversation processing independently evolvable
+
+3. **Security and identity hardening**
+   - strengthen auth/session model for public web surfaces
+   - formalize secret rotation and environment posture by stage
+
+4. **Reliability and observability**
+   - structured metrics/tracing for ingest, routing, handoff, and reminders
+   - explicit SLOs and alerting for reply latency and delivery success
+
+5. **Test depth**
+   - expand integration tests for onboarding edge cases
+   - add deterministic tests for classifier/reminder intent behavior
+   - add failure-injection tests for transport and queue processing
+
+---
+
+Kin is already a credible end-to-end MVP for Telegram household coordination.
+
+The project’s current strength is a working product flow with sensible architectural direction. The next phase is production hardening, clearer service boundaries, and operational depth.
