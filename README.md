@@ -275,9 +275,7 @@ Onboarding:
 ## 8) Main API routes
 
 Onboarding:
-- `POST /api/setup`
 - `POST /api/telegram/bindings/bootstrap`
-- `POST /api/telegram/bindings/complete`
 - `POST /api/telegram/bindings/status`
 
 Runtime:
