@@ -73,15 +73,15 @@ export function OnboardingShell({
   backHref?: string;
 }) {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(254,234,172,0.5),_rgba(247,246,242,1)_36%,_rgba(255,251,244,1)_100%)] text-stone-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-6 md:px-8 md:py-8">
-        <header className="mb-8 rounded-[2rem] border border-white/70 bg-white/75 px-5 py-5 shadow-[0_16px_50px_rgba(104,91,42,0.06)] backdrop-blur md:px-7 md:py-6">
+    <main className="min-h-[100svh] bg-[radial-gradient(circle_at_top,_rgba(254,234,172,0.5),_rgba(247,246,242,1)_36%,_rgba(255,251,244,1)_100%)] text-stone-900">
+      <div className="mx-auto flex min-h-[100svh] w-full max-w-7xl flex-col px-4 py-4 sm:px-5 sm:py-6 md:px-8 md:py-8">
+        <header className="mb-6 rounded-[1.75rem] border border-white/70 bg-white/75 px-4 py-4 shadow-[0_16px_50px_rgba(104,91,42,0.06)] backdrop-blur sm:mb-8 sm:rounded-[2rem] sm:px-5 sm:py-5 md:px-7 md:py-6">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               {showBack && backHref ? (
                 <Link
                   href={backHref}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white/80 text-lg text-[#685b2a] transition hover:border-stone-300 hover:bg-white"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-stone-200 bg-white/80 text-lg text-[#685b2a] transition hover:border-stone-300 hover:bg-white"
                   aria-label="Go back"
                 >
                   ←
@@ -95,7 +95,7 @@ export function OnboardingShell({
           </div>
 
           <div className="mt-6 overflow-x-auto pb-1">
-            <div className="flex min-w-max items-center gap-2 md:gap-3">
+            <div className="flex min-w-max items-center gap-2 pr-2 md:gap-3">
               {STEPS.map((step, index) => {
                 const state = getStepState(currentStep, step.key);
                 const styles = stepClasses(state);
@@ -103,17 +103,15 @@ export function OnboardingShell({
                 return (
                   <div key={step.key} className="flex items-center gap-2 md:gap-3">
                     <div className="flex items-center gap-3">
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-full border text-sm font-semibold transition ${styles.bubble}`}
-                      >
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition sm:h-10 sm:w-10 ${styles.bubble}`}>
                         {step.number}
                       </div>
                       <div className="pr-1">
-                        <p className={`text-sm font-medium ${styles.text}`}>{step.label}</p>
+                        <p className={`text-xs font-medium sm:text-sm ${styles.text}`}>{step.label}</p>
                       </div>
                     </div>
                     {index < STEPS.length - 1 ? (
-                      <div className={`h-[2px] w-10 rounded-full md:w-16 ${styles.line}`} />
+                      <div className={`h-[2px] w-8 rounded-full sm:w-10 md:w-16 ${styles.line}`} />
                     ) : null}
                   </div>
                 );
@@ -122,13 +120,13 @@ export function OnboardingShell({
           </div>
         </header>
 
-        <section className="flex flex-1 items-center justify-center py-4 md:py-8">
-          <div className="w-full rounded-[2.25rem] border border-white/70 bg-white/72 p-6 shadow-[0_24px_80px_rgba(104,91,42,0.08)] backdrop-blur md:p-8 lg:p-10">
-            <div className="mb-8 max-w-3xl">
+        <section className="flex flex-1 items-start justify-center py-2 sm:py-4 md:items-center md:py-8">
+          <div className="w-full rounded-[1.9rem] border border-white/70 bg-white/72 p-5 shadow-[0_24px_80px_rgba(104,91,42,0.08)] backdrop-blur sm:rounded-[2.25rem] sm:p-6 md:p-8 lg:p-10">
+            <div className="mb-6 max-w-3xl sm:mb-8">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#685b2a]">
                 Onboarding
               </p>
-              <h1 className="mt-3 font-serif text-3xl font-semibold tracking-tight text-stone-950 md:text-5xl">
+              <h1 className="mt-3 font-serif text-2xl font-semibold tracking-tight text-stone-950 sm:text-3xl md:text-5xl">
                 {title}
               </h1>
               {description ? (

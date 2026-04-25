@@ -57,7 +57,7 @@ function ConnectTelegramPageContent() {
       showBack
       backHref="/onboarding/household"
     >
-      <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+      <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:gap-10">
         <section className="order-2 space-y-8 lg:order-1">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#685b2a]">
@@ -71,7 +71,7 @@ function ConnectTelegramPageContent() {
             </p>
           </div>
 
-          <div className="space-y-5">
+          <div className="space-y-4 sm:space-y-5">
             {[
               {
                 number: "1",
@@ -92,7 +92,7 @@ function ConnectTelegramPageContent() {
                 tone: "bg-[#e5e2da] text-stone-700",
               },
             ].map((item) => (
-              <div key={item.number} className="flex items-start gap-4 rounded-[1.5rem] border border-stone-200 bg-white p-5 shadow-[0_16px_40px_rgba(104,91,42,0.05)]">
+              <div key={item.number} className="flex items-start gap-3 rounded-[1.5rem] border border-stone-200 bg-white p-4 shadow-[0_16px_40px_rgba(104,91,42,0.05)] sm:gap-4 sm:p-5">
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${item.tone}`}>
                   {item.number}
                 </div>
@@ -104,17 +104,17 @@ function ConnectTelegramPageContent() {
             ))}
           </div>
 
-          <div className="rounded-[1.5rem] border border-stone-200 bg-[#faf8f2] p-5">
+          <div className="rounded-[1.5rem] border border-stone-200 bg-[#faf8f2] p-4 sm:p-5">
             <h3 className="text-base font-semibold text-stone-900">Need the link on another device?</h3>
             <p className="mt-2 text-sm leading-6 text-stone-600">
               Use the button if you’re already on your phone, or copy the link and send it to yourself.
             </p>
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <button
                 type="button"
                 onClick={handleCopyLink}
                 disabled={!deepLink}
-                className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400 sm:w-auto"
               >
                 {copyState === "copied"
                   ? "Link copied"
@@ -130,7 +130,7 @@ function ConnectTelegramPageContent() {
                     ...(onboardingToken ? { onboardingToken } : {}),
                   },
                 }}
-                className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900 sm:w-auto"
               >
                 I already added Kin
               </Link>
@@ -139,7 +139,7 @@ function ConnectTelegramPageContent() {
         </section>
 
         <section className="order-1 flex flex-col items-center lg:order-2">
-          <div className="relative w-full max-w-md rounded-[2rem] border border-white/70 bg-white/70 p-6 shadow-[0_24px_90px_rgba(103,76,18,0.08)] backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-[1.75rem] border border-white/70 bg-white/70 p-4 shadow-[0_24px_90px_rgba(103,76,18,0.08)] backdrop-blur-sm sm:rounded-[2rem] sm:p-6">
             <div className="absolute inset-0 rounded-[2rem] bg-[radial-gradient(circle_at_center,rgba(242,254,222,0.8),rgba(247,246,242,0)_72%)] opacity-80" />
             <div className="relative z-10 rounded-[1.75rem] border border-stone-200 bg-white p-6 shadow-inner">
               <div className="flex items-center justify-between border-b border-stone-200 pb-4">
@@ -154,7 +154,7 @@ function ConnectTelegramPageContent() {
 
               <div className="mt-5 flex flex-col items-center">
                 {qrCodeUrl ? (
-                  <div className="overflow-hidden rounded-[1.5rem] border border-stone-200 bg-[#f9f6ef] p-4 shadow-[0_18px_60px_rgba(103,76,18,0.08)]">
+                  <div className="overflow-hidden rounded-[1.5rem] border border-stone-200 bg-[#f9f6ef] p-3 shadow-[0_18px_60px_rgba(103,76,18,0.08)] sm:p-4">
                     <Image
                       src={qrCodeUrl}
                       alt="QR code for the Telegram deep link"
@@ -201,7 +201,7 @@ function ConnectTelegramPageContent() {
 
 export default function ConnectTelegramPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-6 py-12 text-stone-900" />}>
+    <Suspense fallback={<div className="min-h-[100svh] bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-4 py-6 text-stone-900 sm:px-6 sm:py-12" />}>
       <ConnectTelegramPageContent />
     </Suspense>
   );

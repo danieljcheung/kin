@@ -154,8 +154,8 @@ export default function HouseholdOnboardingPage() {
       backHref="/signup/confirm"
     >
       <div className="mx-auto max-w-3xl">
-        <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-          <section className="rounded-[1.75rem] border border-stone-200 bg-[#faf8f2] p-6">
+        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:gap-8">
+          <section className="rounded-[1.75rem] border border-stone-200 bg-[#faf8f2] p-5 sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
               Household step
             </p>
@@ -177,7 +177,7 @@ export default function HouseholdOnboardingPage() {
             </div>
           </section>
 
-          <section className="rounded-[1.75rem] border border-stone-200 bg-white p-6 shadow-[0_18px_60px_rgba(104,91,42,0.06)]">
+          <section className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-[0_18px_60px_rgba(104,91,42,0.06)] sm:p-6">
             {loadingIdentity ? (
               <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
                 Loading your account...
@@ -209,7 +209,7 @@ export default function HouseholdOnboardingPage() {
                   type="text"
                   value={familyName}
                   onChange={(e) => setFamilyName(e.target.value)}
-                  className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-stone-500"
+                  className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-base outline-none transition focus:border-stone-500 sm:text-sm"
                   placeholder="Cheung Family"
                 />
               </div>
@@ -229,7 +229,7 @@ export default function HouseholdOnboardingPage() {
               <button
                 type="submit"
                 disabled={loadingIdentity || submitting || !identity}
-                className="inline-flex w-full items-center justify-center rounded-full bg-stone-900 px-6 py-3.5 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-stone-900 px-6 py-3.5 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? "Creating household..." : "Continue"}
               </button>

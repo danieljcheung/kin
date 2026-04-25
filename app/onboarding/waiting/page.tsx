@@ -179,9 +179,9 @@ function TelegramWaitingPageContent() {
       showBack
       backHref="/onboarding/connect-telegram"
     >
-      <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+      <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-10">
         <section className="space-y-6">
-          <div className="rounded-[1.75rem] border border-stone-200 bg-white p-6 shadow-[0_18px_60px_rgba(104,91,42,0.06)]">
+          <div className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-[0_18px_60px_rgba(104,91,42,0.06)] sm:p-6">
             <div className="flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-[#685b2a] animate-pulse" />
               <p className="text-sm font-medium text-stone-800">
@@ -215,10 +215,10 @@ function TelegramWaitingPageContent() {
             ) : null}
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Link
               href="/onboarding/connect-telegram"
-              className="inline-flex items-center justify-center rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-stone-800"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-stone-800 sm:w-auto"
             >
               Open Telegram
             </Link>
@@ -230,7 +230,7 @@ function TelegramWaitingPageContent() {
                   ...(onboardingToken ? { onboardingToken } : {}),
                 },
               }}
-              className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900 sm:w-auto"
             >
               I already added Kin
             </Link>
@@ -239,7 +239,7 @@ function TelegramWaitingPageContent() {
 
         <section>
           {(loadState === "loading" || loadState === "pending") && !isMissingIdentifiers ? (
-            <div className="rounded-[2rem] border border-white/70 bg-white/75 p-6 shadow-[0_24px_80px_rgba(104,91,42,0.08)] backdrop-blur-sm">
+            <div className="rounded-[2rem] border border-white/70 bg-white/75 p-5 shadow-[0_24px_80px_rgba(104,91,42,0.08)] backdrop-blur-sm sm:p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Setup progress</p>
               <div className="mt-6 space-y-4">
                 {checklistItems.map((item) => (
@@ -257,7 +257,7 @@ function TelegramWaitingPageContent() {
           ) : null}
 
           {(isMissingIdentifiers || loadState === "invalid" || loadState === "error") ? (
-            <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-[0_18px_60px_rgba(104,91,42,0.06)]">
+            <div className="rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_60px_rgba(104,91,42,0.06)] sm:p-6">
               <h2 className="text-xl font-semibold tracking-tight text-stone-950">
                 {isMissingIdentifiers
                   ? "Missing setup details"
@@ -270,16 +270,16 @@ function TelegramWaitingPageContent() {
                   ? "Open this page from the Telegram setup step so Kin can identify the correct onboarding session."
                   : errorMessage}
               </p>
-              <div className="mt-5 flex flex-wrap gap-3">
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <Link
                   href="/onboarding/connect-telegram"
-                  className="inline-flex items-center justify-center rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-stone-800"
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-stone-800 sm:w-auto"
                 >
                   Back to Telegram setup
                 </Link>
                 <Link
                   href="/onboarding/household"
-                  className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900"
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900 sm:w-auto"
                 >
                   Restart onboarding
                 </Link>
@@ -294,7 +294,7 @@ function TelegramWaitingPageContent() {
 
 export default function TelegramWaitingPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-6 py-12 text-stone-900" />}>
+    <Suspense fallback={<div className="min-h-[100svh] bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-4 py-6 text-stone-900 sm:px-6 sm:py-12" />}>
       <TelegramWaitingPageContent />
     </Suspense>
   );

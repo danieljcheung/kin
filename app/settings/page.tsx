@@ -58,9 +58,9 @@ function SettingsContent({ state }: { state: DashboardApiResponse["data"] }) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <section className="rounded-[1.75rem] border border-stone-200 bg-white p-6 shadow-[0_18px_60px_rgba(104,91,42,0.07)]">
+    <div className="space-y-5 sm:space-y-6">
+      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr] xl:gap-6">
+        <section className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-[0_18px_60px_rgba(104,91,42,0.07)] sm:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
             Telegram connection
           </p>
@@ -84,10 +84,10 @@ function SettingsContent({ state }: { state: DashboardApiResponse["data"] }) {
             </div>
           </dl>
 
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <a
               href={state.telegram.reconnectUrl}
-              className="inline-flex items-center justify-center rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-stone-800"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-stone-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-stone-800 sm:w-auto"
             >
               Reconnect Telegram
             </a>
@@ -96,7 +96,7 @@ function SettingsContent({ state }: { state: DashboardApiResponse["data"] }) {
                 href={state.telegram.deepLink}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center justify-center rounded-full border border-stone-300 px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-stone-300 px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900 sm:w-auto"
               >
                 Open Telegram
               </a>
@@ -104,7 +104,7 @@ function SettingsContent({ state }: { state: DashboardApiResponse["data"] }) {
           </div>
         </section>
 
-        <section className="rounded-[1.75rem] border border-stone-200 bg-white p-6 shadow-[0_18px_60px_rgba(104,91,42,0.07)]">
+        <section className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-[0_18px_60px_rgba(104,91,42,0.07)] sm:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
             Household details
           </p>
@@ -134,7 +134,7 @@ function SettingsContent({ state }: { state: DashboardApiResponse["data"] }) {
         </section>
       </div>
 
-      <section className="rounded-[1.75rem] border border-red-200 bg-[linear-gradient(180deg,rgba(255,247,247,0.98),rgba(255,255,255,1))] p-6 shadow-[0_18px_60px_rgba(185,41,2,0.06)]">
+      <section className="rounded-[1.75rem] border border-red-200 bg-[linear-gradient(180deg,rgba(255,247,247,0.98),rgba(255,255,255,1))] p-5 shadow-[0_18px_60px_rgba(185,41,2,0.06)] sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-600">
           Danger zone
         </p>
@@ -150,13 +150,13 @@ function SettingsContent({ state }: { state: DashboardApiResponse["data"] }) {
             <button
               type="button"
               onClick={() => setShowConfirm(true)}
-              className="inline-flex items-center justify-center rounded-full bg-red-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-red-700"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-red-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-red-700 sm:w-auto"
             >
               Delete household
             </button>
           </div>
         ) : (
-          <div className="mt-6 rounded-[1.5rem] border border-red-200 bg-white p-5">
+          <div className="mt-6 rounded-[1.5rem] border border-red-200 bg-white p-4 sm:p-5">
             <h4 className="text-lg font-semibold text-stone-950">Delete household?</h4>
             <p className="mt-3 text-sm leading-7 text-stone-600">
               This action cannot be undone. Type <span className="font-semibold text-stone-900">{state.household.name}</span> to confirm.
@@ -170,7 +170,7 @@ function SettingsContent({ state }: { state: DashboardApiResponse["data"] }) {
                 type="text"
                 value={confirmValue}
                 onChange={(e) => setConfirmValue(e.target.value)}
-                className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-red-400"
+                className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-base outline-none transition focus:border-red-400 sm:text-sm"
                 placeholder={state.household.name}
               />
             </div>
@@ -181,7 +181,7 @@ function SettingsContent({ state }: { state: DashboardApiResponse["data"] }) {
               </div>
             ) : null}
 
-            <div className="mt-5 flex flex-wrap gap-3">
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <button
                 type="button"
                 onClick={() => {
@@ -189,7 +189,7 @@ function SettingsContent({ state }: { state: DashboardApiResponse["data"] }) {
                   setConfirmValue("");
                   setDeleteError("");
                 }}
-                className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-medium text-stone-700 transition hover:border-stone-500 hover:text-stone-900 sm:w-auto"
               >
                 Cancel
               </button>
@@ -197,7 +197,7 @@ function SettingsContent({ state }: { state: DashboardApiResponse["data"] }) {
                 type="button"
                 onClick={handleDeleteHousehold}
                 disabled={deleteLoading}
-                className="inline-flex items-center justify-center rounded-full bg-red-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-red-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 {deleteLoading ? "Deleting household..." : "Delete household"}
               </button>

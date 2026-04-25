@@ -262,53 +262,63 @@ function StackedDeck({ items }: { items: DeckItem[] }) {
   }, [items.length]);
 
   return (
-    <div
-      ref={rootRef}
-      className="relative"
-      style={{
-        height: `calc((100svh - 7rem) + ${Math.max(
-          items.length - 1,
-          0,
-        )} * ${stackStepCss})`,
-      }}
-    >
-      <div
-        ref={stageRef}
-        className="relative z-10 h-[calc(100svh-7rem)] min-h-[38rem] overflow-hidden"
-      >
-        <div className="relative h-full w-full px-3 py-8 sm:px-5 sm:py-10 lg:px-7 lg:py-12">
-          {items.map((item, index) => (
-            <section
-              key={item.id}
-              className="pointer-events-none absolute inset-0"
-              style={{ zIndex: index + 1 }}
-            >
-              <div
-                ref={(node) => {
-                  cardRefs.current[index] = node;
-                }}
-                className="flex h-full w-full items-center justify-center will-change-transform [backface-visibility:hidden]"
-              >
-                <div className="pointer-events-auto w-full">{item.content}</div>
-              </div>
-            </section>
-          ))}
-        </div>
+    <>
+      <div className="space-y-4 md:hidden">
+        {items.map((item) => (
+          <section key={item.id} id={item.id}>
+            {item.content}
+          </section>
+        ))}
       </div>
 
-      {items.map((item, index) => (
+      <div
+        ref={rootRef}
+        className="relative hidden md:block"
+        style={{
+          height: `calc((100svh - 7rem) + ${Math.max(
+            items.length - 1,
+            0,
+          )} * ${stackStepCss})`,
+        }}
+      >
         <div
-          key={`${item.id}-anchor`}
-          id={item.id}
-          aria-hidden="true"
-          className="pointer-events-none absolute left-0 right-0 h-px"
-          style={{
-            scrollMarginTop: `${stackStartOffset}px`,
-            top: index === 0 ? "0px" : `calc(${index} * ${stackStepCss})`,
-          }}
-        />
-      ))}
-    </div>
+          ref={stageRef}
+          className="relative z-10 h-[calc(100svh-7rem)] min-h-[38rem] overflow-hidden"
+        >
+          <div className="relative h-full w-full px-3 py-8 sm:px-5 sm:py-10 lg:px-7 lg:py-12">
+            {items.map((item, index) => (
+              <section
+                key={item.id}
+                className="pointer-events-none absolute inset-0"
+                style={{ zIndex: index + 1 }}
+              >
+                <div
+                  ref={(node) => {
+                    cardRefs.current[index] = node;
+                  }}
+                  className="flex h-full w-full items-center justify-center will-change-transform [backface-visibility:hidden]"
+                >
+                  <div className="pointer-events-auto w-full">{item.content}</div>
+                </div>
+              </section>
+            ))}
+          </div>
+        </div>
+
+        {items.map((item, index) => (
+          <div
+            key={`${item.id}-anchor`}
+            id={item.id}
+            aria-hidden="true"
+            className="pointer-events-none absolute left-0 right-0 h-px"
+            style={{
+              scrollMarginTop: `${stackStartOffset}px`,
+              top: index === 0 ? "0px" : `calc(${index} * ${stackStepCss})`,
+            }}
+          />
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -371,28 +381,28 @@ export default function Page() {
       id: "top",
       content: (
         <LandingCard forceSolid>
-          <div className="grid flex-1 gap-10 lg:grid-cols-[1.04fr_0.96fr] lg:items-center">
+          <div className="grid flex-1 gap-8 lg:grid-cols-[1.04fr_0.96fr] lg:items-center">
             <div className="flex flex-col justify-center">
-              <span className="inline-flex w-fit rounded-full border border-yellow-200 bg-white px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-stone-600">
+              <span className="inline-flex w-fit rounded-full border border-yellow-200 bg-white px-3 py-2 text-[11px] font-medium uppercase tracking-[0.24em] text-stone-600 sm:px-4 sm:text-xs">
                 Family assistant in chat
               </span>
-              <h1 className="mt-6 max-w-xl text-4xl font-semibold tracking-tight text-stone-950 sm:text-5xl lg:text-6xl">
+              <h1 className="mt-5 max-w-xl text-3xl font-semibold tracking-tight text-stone-950 sm:mt-6 sm:text-5xl lg:text-6xl">
                 Your family assistant, right in the chat.
               </h1>
-              <p className="mt-6 max-w-xl text-lg leading-8 text-stone-600">
+              <p className="mt-5 max-w-xl text-base leading-7 text-stone-600 sm:mt-6 sm:text-lg sm:leading-8">
                 Kin helps your household stay organized inside the conversation you already use. No complicated system, just clear help.
               </p>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <div className="mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row">
                 <Link
                   href="/signup"
-                  className="inline-flex items-center justify-center rounded-full bg-stone-900 px-6 py-3.5 text-base font-medium text-white shadow-[0_14px_30px_rgba(41,37,36,0.18)] transition hover:-translate-y-0.5 hover:bg-stone-800"
+                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-stone-900 px-6 py-3.5 text-base font-medium text-white shadow-[0_14px_30px_rgba(41,37,36,0.18)] transition hover:-translate-y-0.5 hover:bg-stone-800 sm:w-auto"
                 >
                   Set up Kin
                 </Link>
                 <a
                   href="#setup"
-                  className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-white px-6 py-3.5 text-base font-medium text-stone-800 transition hover:border-stone-400"
+                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-stone-300 bg-white px-6 py-3.5 text-base font-medium text-stone-800 transition hover:border-stone-400 sm:w-auto"
                 >
                   See setup
                 </a>
@@ -400,8 +410,8 @@ export default function Page() {
             </div>
 
             <div className="flex items-center">
-              <div className="w-full rounded-[1.85rem] border border-stone-200 bg-white p-4 shadow-[0_18px_50px_rgba(41,37,36,0.08)] sm:p-5">
-                <div className="rounded-[1.4rem] border border-stone-200 bg-white p-4 shadow-inner">
+              <div className="w-full rounded-[1.65rem] border border-stone-200 bg-white p-3 shadow-[0_18px_50px_rgba(41,37,36,0.08)] sm:rounded-[1.85rem] sm:p-5">
+                <div className="rounded-[1.2rem] border border-stone-200 bg-white p-3 shadow-inner sm:rounded-[1.4rem] sm:p-4">
                   <div className="mb-4 flex items-center justify-between border-b border-stone-200 pb-3">
                     <p className="text-sm font-semibold text-stone-900">Family chat</p>
                     <p className="text-xs text-stone-500">Kin active</p>
@@ -439,7 +449,7 @@ export default function Page() {
               </h2>
             </div>
 
-            <div className="mt-10 grid gap-5 lg:grid-cols-3">
+            <div className="mt-8 grid gap-4 sm:mt-10 sm:gap-5 lg:grid-cols-3">
               {valueProps.map((item) => (
                 <article
                   key={item.title}
@@ -466,7 +476,7 @@ export default function Page() {
               <p className="text-sm font-medium uppercase tracking-[0.24em] text-stone-500">
                 Setup flow
               </p>
-              <h2 className="mt-4 text-3xl font-semibold tracking-tight text-stone-950 sm:text-4xl">
+              <h2 className="mt-4 text-2xl font-semibold tracking-tight text-stone-950 sm:text-4xl">
                 Fast setup, familiar daily use.
               </h2>
               <p className="mt-5 max-w-xl text-base leading-7 text-stone-600">
@@ -478,9 +488,9 @@ export default function Page() {
               {setupSteps.map((step) => (
                 <div
                   key={step.number}
-                  className="flex gap-4 rounded-[1.4rem] border border-[#ede3cf] bg-white p-5 shadow-sm"
+                  className="flex gap-3 rounded-[1.4rem] border border-[#ede3cf] bg-white p-4 shadow-sm sm:gap-4 sm:p-5"
                 >
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#ffe793] text-sm font-semibold text-stone-800">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#ffe793] text-sm font-semibold text-stone-800 sm:h-11 sm:w-11">
                     {step.number}
                   </div>
                   <div>
@@ -503,7 +513,7 @@ export default function Page() {
               <p className="text-sm font-medium uppercase tracking-[0.24em] text-stone-500">
                 Built for families
               </p>
-              <h2 className="mt-4 text-3xl font-semibold tracking-tight text-stone-950 sm:text-4xl">
+              <h2 className="mt-4 text-2xl font-semibold tracking-tight text-stone-950 sm:text-4xl">
                 Useful every week, not just once.
               </h2>
               <p className="mt-5 text-base leading-7 text-stone-600">
@@ -522,7 +532,7 @@ export default function Page() {
               </ul>
             </div>
 
-            <div className="rounded-[1.75rem] border border-[#ead9ab] bg-[linear-gradient(180deg,rgba(255,246,204,0.82),rgba(255,252,240,0.94))] p-6 shadow-[0_16px_44px_rgba(117,87,24,0.12)]">
+            <div className="rounded-[1.75rem] border border-[#ead9ab] bg-[linear-gradient(180deg,rgba(255,246,204,0.82),rgba(255,252,240,0.94))] p-5 shadow-[0_16px_44px_rgba(117,87,24,0.12)] sm:p-6">
               <p className="text-sm font-medium uppercase tracking-[0.24em] text-stone-500">
                 Grounded approach
               </p>
@@ -542,14 +552,14 @@ export default function Page() {
       content: (
         <LandingCard>
           <div className="flex flex-1 items-center">
-            <div className="w-full rounded-[1.9rem] border border-stone-900/10 bg-stone-900 px-8 py-12 text-white shadow-[0_24px_90px_rgba(41,37,36,0.24)] sm:px-12">
+            <div className="w-full rounded-[1.9rem] border border-stone-900/10 bg-stone-900 px-5 py-8 text-white shadow-[0_24px_90px_rgba(41,37,36,0.24)] sm:px-8 sm:py-12 lg:px-12">
               <div className="flex h-full flex-col gap-10">
                 <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
                   <div className="max-w-2xl">
                     <p className="text-sm font-medium uppercase tracking-[0.24em] text-yellow-100/85">
                       Ready when you are
                     </p>
-                    <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+                    <h2 className="mt-4 text-2xl font-semibold tracking-tight sm:text-4xl">
                       Bring Kin into your family chat.
                     </h2>
                     <p className="mt-5 text-base leading-7 text-stone-300">
@@ -560,13 +570,13 @@ export default function Page() {
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <Link
                       href="/signup"
-                      className="inline-flex items-center justify-center rounded-full bg-[#ffe58f] px-6 py-3.5 text-base font-medium text-stone-900 transition hover:bg-[#ffde73]"
+                      className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#ffe58f] px-6 py-3.5 text-base font-medium text-stone-900 transition hover:bg-[#ffde73] sm:w-auto"
                     >
                       Start setup
                     </Link>
                     <Link
                       href="/signin?next=/dashboard"
-                      className="inline-flex items-center justify-center rounded-full border border-white/25 px-6 py-3.5 text-base font-medium text-white transition hover:bg-white/10"
+                      className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/25 px-6 py-3.5 text-base font-medium text-white transition hover:bg-white/10 sm:w-auto"
                     >
                       Open dashboard
                     </Link>
@@ -582,17 +592,17 @@ export default function Page() {
   ];
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(255,244,193,0.9),_rgba(255,251,241,0.96)_40%,_rgba(255,247,231,1)_100%)] text-stone-900">
+    <main className="relative min-h-[100svh] overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(255,244,193,0.9),_rgba(255,251,241,0.96)_40%,_rgba(255,247,231,1)_100%)] text-stone-900">
 
       <nav
-        className={`fixed left-1/2 top-4 z-40 w-[calc(100%-1.5rem)] max-w-5xl -translate-x-1/2 rounded-full border border-white/70 bg-white/72 px-3 py-2 shadow-[0_18px_60px_rgba(118,84,20,0.14)] backdrop-blur-xl transition-all duration-700 sm:px-4 ${
+        className={`fixed left-1/2 top-3 z-40 w-[calc(100%-1rem)] max-w-5xl -translate-x-1/2 rounded-full border border-white/70 bg-white/72 px-2.5 py-2 shadow-[0_18px_60px_rgba(118,84,20,0.14)] backdrop-blur-xl transition-all duration-700 sm:top-4 sm:w-[calc(100%-1.5rem)] sm:px-4 ${
           navVisible
             ? "translate-y-0 opacity-100"
             : "pointer-events-none -translate-y-5 opacity-0"
         }`}
       >
         <div className="flex items-center justify-between gap-2 sm:gap-4">
-          <a href="#top" className="flex items-center gap-3 rounded-full px-2 py-1">
+          <a href="#top" className="flex shrink-0 items-center gap-2 rounded-full px-2 py-1 sm:gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(135deg,#fff6c9,#f4cf67)] text-xs font-semibold tracking-[0.2em] text-stone-900">
               K
             </div>
@@ -613,16 +623,16 @@ export default function Page() {
             </a>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             <Link
               href="/signin?next=/dashboard"
-              className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-white/88 px-4 py-2 text-sm font-medium text-stone-800 transition hover:border-stone-400 hover:bg-white"
+              className="inline-flex min-h-10 items-center justify-center rounded-full border border-stone-300 bg-white/88 px-3 py-2 text-sm font-medium text-stone-800 transition hover:border-stone-400 hover:bg-white sm:px-4"
             >
               Log in
             </Link>
             <Link
               href="/signup"
-              className="inline-flex items-center justify-center rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-800"
+              className="inline-flex min-h-10 items-center justify-center rounded-full bg-stone-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-stone-800 sm:px-4"
             >
               Start
             </Link>
@@ -636,7 +646,7 @@ export default function Page() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, transition: { duration: 0.28 } }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(255,241,182,0.86),_rgba(255,248,230,0.95)_48%,_rgba(255,246,224,0.98)_100%)] px-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(255,241,182,0.86),_rgba(255,248,230,0.95)_48%,_rgba(255,246,224,0.98)_100%)] px-4 py-6"
           >
             <button
               type="button"
@@ -658,9 +668,9 @@ export default function Page() {
                     : { y: "0vh", scale: 1 }
                 }
                 transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-                className="rounded-[2rem] border border-white/70 bg-white/58 p-4 shadow-[0_22px_80px_rgba(109,81,17,0.18)] backdrop-blur-xl will-change-transform sm:p-6"
+                className="rounded-[1.75rem] border border-white/70 bg-white/58 p-3 shadow-[0_22px_80px_rgba(109,81,17,0.18)] backdrop-blur-xl will-change-transform sm:rounded-[2rem] sm:p-6"
               >
-                <div className="rounded-[1.5rem] border border-white/70 bg-[#fcf7ea]/95 p-4 shadow-inner sm:p-5">
+                <div className="rounded-[1.4rem] border border-white/70 bg-[#fcf7ea]/95 p-3 shadow-inner sm:rounded-[1.5rem] sm:p-5">
                   <div className="mb-4 flex items-center justify-between border-b border-stone-200/80 pb-3">
                     <p className="text-sm font-semibold text-stone-800">Family chat</p>
                     <p className="text-xs text-stone-500">Now</p>
@@ -737,7 +747,7 @@ export default function Page() {
       </AnimatePresence>
 
       <div
-        className="relative z-10 mx-auto max-w-6xl px-4 pb-8 sm:px-8"
+        className="relative z-10 mx-auto max-w-6xl px-3 pb-6 sm:px-8 sm:pb-8"
         style={{ paddingTop: `${stackStartOffset}px` }}
       >
         <div className="relative">

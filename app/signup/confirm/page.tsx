@@ -229,14 +229,14 @@ function ConfirmSignupPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-6 py-12 text-stone-900">
+    <main className="min-h-[100svh] bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-4 py-6 text-stone-900 sm:px-6 sm:py-12">
       <div className="mx-auto max-w-md">
-        <div className="rounded-[2rem] border border-white/80 bg-white/80 p-8 shadow-[0_24px_90px_rgba(103,76,18,0.08)] backdrop-blur-sm">
+        <div className="rounded-[1.75rem] border border-white/80 bg-white/80 p-5 shadow-[0_24px_90px_rgba(103,76,18,0.08)] backdrop-blur-sm sm:rounded-[2rem] sm:p-8">
           <div className="mb-8">
             <p className="text-sm font-medium uppercase tracking-[0.22em] text-stone-500">
               Step 2
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-stone-950">
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-stone-950 sm:text-3xl">
               Verify your email
             </h1>
             <p className="mt-3 text-sm leading-6 text-stone-600">
@@ -248,7 +248,7 @@ function ConfirmSignupPageContent() {
             </p>
           </div>
 
-          <div className="flex justify-between gap-2">
+          <div className="grid grid-cols-6 gap-2 sm:flex sm:justify-between">
             {digits.map((digit, index) => (
               <input
                 key={index}
@@ -263,7 +263,7 @@ function ConfirmSignupPageContent() {
                 onChange={(e) => updateDigit(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
                 onPaste={handlePaste}
-                className="h-14 w-12 rounded-2xl border border-stone-300 bg-white text-center text-xl font-semibold text-stone-900 outline-none transition focus:border-stone-500"
+                className="h-12 w-full rounded-2xl border border-stone-300 bg-white text-center text-lg font-semibold text-stone-900 outline-none transition focus:border-stone-500 sm:h-14 sm:w-12 sm:text-xl"
               />
             ))}
           </div>
@@ -284,7 +284,7 @@ function ConfirmSignupPageContent() {
             type="button"
             onClick={handleVerify}
             disabled={loading}
-            className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-stone-900 px-6 py-3.5 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-stone-900 px-6 py-3.5 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "Verifying..." : "Verify email"}
           </button>
@@ -313,7 +313,7 @@ function ConfirmSignupPageContent() {
 
 export default function ConfirmSignupPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-6 py-12 text-stone-900" />}>
+    <Suspense fallback={<div className="min-h-[100svh] bg-[radial-gradient(circle_at_top,_rgba(255,246,196,0.9),_rgba(255,251,240,1)_45%,_rgba(255,248,235,1)_100%)] px-4 py-6 text-stone-900 sm:px-6 sm:py-12" />}>
       <ConfirmSignupPageContent />
     </Suspense>
   );
